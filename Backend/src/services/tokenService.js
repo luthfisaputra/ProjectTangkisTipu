@@ -1,11 +1,18 @@
 import crypto from 'node:crypto';
 import { query } from '../config/db.js';
 
-const TOKEN_BYTES = 16;
+const TOKEN_PREFIX = 'TKP-';
+const TOKEN_LENGTH = 8;
 const MAX_ATTEMPTS = 5;
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export function generateToken() {
-  return crypto.randomBytes(TOKEN_BYTES).toString('hex');
+  const bytes = crypto.randomBytes(TOKEN_LENGTH);
+  let body = '';
+  for (let i = 0; i < TOKEN_LENGTH; i += 1) {
+    body += ALPHABET[bytes[i] % ALPHABET.length];
+  }
+  return `${TOKEN_PREFIX}${body}`;
 }
 
 export async function tokenExists(token) {

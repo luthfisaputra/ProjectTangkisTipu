@@ -1,6 +1,7 @@
 import { pool } from '../config/db.js';
 
 const CLASS_CODES = [
+  { code: 'GURU-01', label: 'Kelas Guru Demo' },
   { code: 'TANGKIS2026', label: 'Kelas Umum TangkisTipu' },
   { code: 'SEKOLAH01', label: 'Sekolah Demo' },
   { code: 'KOMUNITAS', label: 'Komunitas Waspada Digital' },
