@@ -7,6 +7,7 @@ import participantsRouter from './routes/participants.js';
 import classCodesRouter from './routes/classCodes.js';
 import modulesRouter from './routes/modules.js';
 import progressRouter from './routes/progress.js';
+import testsRouter from './routes/tests.js';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api/participants', participantsRouter);
 app.use('/api/class-codes', classCodesRouter);
 app.use('/api/modules', modulesRouter);
 app.use('/api/progress', progressRouter);
+app.use('/api/tests', testsRouter);
 
 app.use(notFound);
 app.use(errorHandler);
