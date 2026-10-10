@@ -5,6 +5,8 @@ import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import participantsRouter from './routes/participants.js';
 import classCodesRouter from './routes/classCodes.js';
+import modulesRouter from './routes/modules.js';
+import progressRouter from './routes/progress.js';
 
 const app = express();
 
@@ -18,6 +20,8 @@ app.get('/health', (req, res) => {
 
 app.use('/api/participants', participantsRouter);
 app.use('/api/class-codes', classCodesRouter);
+app.use('/api/modules', modulesRouter);
+app.use('/api/progress', progressRouter);
 
 app.use(notFound);
 app.use(errorHandler);
