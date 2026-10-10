@@ -1,0 +1,10 @@
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/public/assets/
+*.png
+*.jpg
+package-lock.json
+.env
+.env.*
+!.env.example
