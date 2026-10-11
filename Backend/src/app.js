@@ -13,6 +13,7 @@ import adminAuthRouter from './routes/adminAuth.js';
 import adminRouter from './routes/admin.js';
 import adminSetSoalRouter from './routes/adminSetSoal.js';
 import adminClassCodesRouter from './routes/adminClassCodes.js';
+import adminStatsRouter from './routes/adminStats.js';
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/api/tests', testsRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin', adminSetSoalRouter);
 app.use('/api/admin', adminClassCodesRouter);
+app.use('/api/admin', adminStatsRouter);
 app.use('/api/admin', adminRouter);
 
 app.use(notFound);
