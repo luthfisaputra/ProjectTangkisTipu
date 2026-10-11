@@ -20,7 +20,8 @@ export const globalLimiter = rateLimit({
 
 export const tokenLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
-  max: Math.max(5, Math.floor(env.RATE_LIMIT_MAX / 5)),
+  max: env.RATE_LIMIT_TOKEN_FAIL_MAX,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   handler,

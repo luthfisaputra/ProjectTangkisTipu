@@ -1,4 +1,5 @@
 import express from 'express';
+import { env } from './config/env.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { globalLimiter } from './middleware/rateLimit.js';
 import { notFound } from './middleware/notFound.js';
@@ -10,6 +11,10 @@ import progressRouter from './routes/progress.js';
 import testsRouter from './routes/tests.js';
 
 const app = express();
+
+if (env.TRUST_PROXY > 0) {
+  app.set('trust proxy', env.TRUST_PROXY);
+}
 
 app.use(corsMiddleware);
 app.use(express.json());

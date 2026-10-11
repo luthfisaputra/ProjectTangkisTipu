@@ -27,6 +27,8 @@ Variabel yang dibutuhkan:
 | `CORS_ORIGIN` | tidak | `*` | Origin frontend yang diizinkan |
 | `RATE_LIMIT_WINDOW_MS` | tidak | `60000` | Jendela rate limit (ms) |
 | `RATE_LIMIT_MAX` | tidak | `100` | Maks request per jendela |
+| `RATE_LIMIT_TOKEN_FAIL_MAX` | tidak | `10` | Maks respons gagal (status >= 400) per jendela untuk endpoint token |
+| `TRUST_PROXY` | tidak | `0` | Jumlah hop proxy tepercaya (`app.set('trust proxy')` bila > 0) |
 
 Contoh `.env`:
 
@@ -37,6 +39,8 @@ NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=100
+RATE_LIMIT_TOKEN_FAIL_MAX=10
+TRUST_PROXY=0
 ```
 
 ## 3. Migrasi
