@@ -1,20 +1,10 @@
-import { useState } from 'react'
-import { TRACKS } from '../data/jalurBelajar.jsx'
-import { validateClassCode, createParticipant, getParticipant, getProgress } from '../api.js'
+import { useEffect, useRef, useState } from 'react'
+import { TRACKS, generateParticipantId } from '../data/jalurBelajar.jsx'
+import { validateClassCode, createParticipant, ApiError } from '../api.js'
 
 const HELP_TEXT = 'Kode Kelas / Komunitas diberikan oleh fasilitator pelatihan agar nilaimu terekap ke dashboard kelompok. Jika kamu belajar sendiri, kolom ini boleh dikosongkan!'
 
-const TOKEN_KEY = 'tangkistipu_token'
-const POLA_TOKEN = /^TKP-[A-Z0-9]{8}$/i
-
-const mapProgres = (p) => ({
-  pretest: p?.pretest ? { skor: p.pretest } : null,
-  modusDibaca: p?.modusDibaca ?? 0,
-  skenario: p?.skenario ?? 0,
-  posttest: p?.posttest ? { skor: p.posttest } : null,
-})
-
-export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {}, onHome = () => {}, onMulaiBaru = () => {}, onMasuk = () => {} }) {
+export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {}, onHome = () => {} }) {
   const [nickname, setNickname] = useState('')
   const [code, setCode] = useState('')
   const [track, setTrack] = useState(1)
@@ -22,102 +12,108 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
   const [showModal, setShowModal] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [demoId, setDemoId] = useState('TKP-8924-X')
-  const [codeValid, setCodeValid] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [tokenMasuk, setTokenMasuk] = useState('')
-  const [pesanMasuk, setPesanMasuk] = useState('')
-  const [loadingMasuk, setLoadingMasuk] = useState(false)
+
+  // Status validasi kode kelas: idle | loading | valid | invalid | error
+  const [kodeStatus, setKodeStatus] = useState('idle')
+  const [kodeLabel, setKodeLabel] = useState('')
+  const [kodePesan, setKodePesan] = useState('')
+  const [submitLoading, setSubmitLoading] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const clean = code.trim().toUpperCase()
+  const codeValid = kodeStatus === 'valid'
+  const submittingRef = useRef(false)
 
-  const handleCodeChange = async (value) => {
-    setCode(value)
-    setError('')
-    const c = value.trim().toUpperCase()
-    if (!c) {
-      setCodeValid(false)
+  // Validasi kode kelas ke backend (debounce) saat pengguna berhenti mengetik.
+  useEffect(() => {
+    if (!clean) {
+      setKodeStatus('idle')
+      setKodeLabel('')
+      setKodePesan('')
       return
     }
-    try {
-      const res = await validateClassCode(c)
-      setCodeValid(Boolean(res?.valid))
-    } catch {
-      setCodeValid(false)
+
+    const controller = new AbortController()
+    setKodeStatus('loading')
+    setKodePesan('')
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await validateClassCode(clean, { signal: controller.signal })
+        if (res && res.valid) {
+          setKodeStatus('valid')
+          setKodeLabel(res.label || '')
+        } else {
+          setKodeStatus('invalid')
+          setKodeLabel('')
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') return
+        setKodeStatus('error')
+        setKodePesan(
+          err instanceof ApiError
+            ? err.message
+            : 'Gagal memeriksa kode kelas. Coba lagi sebentar lagi.'
+        )
+      }
+    }, 500)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
     }
-  }
+  }, [clean])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (submittingRef.current) return
     const nick = nickname.trim()
     if (!nick) {
       window.alert('Silakan isi nama panggilan terlebih dahulu.')
       return
     }
-    setError('')
-    setLoading(true)
+    if (clean && kodeStatus === 'loading') {
+      setSubmitError('Tunggu sebentar, kode kelas sedang diperiksa.')
+      return
+    }
+    if (clean && kodeStatus !== 'valid') {
+      setSubmitError('Kode kelas belum valid. Periksa lagi atau kosongkan bila belajar mandiri.')
+      return
+    }
+
+    submittingRef.current = true
+    setSubmitLoading(true)
+    setSubmitError('')
+
     try {
-      if (clean) {
-        const check = await validateClassCode(clean)
-        if (!check?.valid) {
-          setCodeValid(false)
-          setError('Kode kelas tidak ditemukan. Periksa lagi atau kosongkan jika belajar sendiri.')
-          return
-        }
+      const payload = { nickname: nick, track }
+      if (clean) payload.classCode = clean
+      const res = await createParticipant(payload)
+      const token = res && res.token
+      if (!token) {
+        throw new ApiError('Server tidak mengembalikan kode peserta.', {
+          status: 0,
+          code: 'INVALID_RESPONSE',
+        })
       }
-      const res = await createParticipant({
-        nama: nick,
-        nickname: nick,
-        kelas: '',
-        classCode: clean || undefined,
-      })
+      const participant = res.participant || {}
       setPeserta({
-        nickname: nick,
-        track,
-        classCode: clean,
-        token: res?.token || res?.participant?.token || '',
+        nickname: participant.nickname || nick,
+        track: participant.track ?? track,
+        classCode: participant.classCode || clean || '',
+        token,
+        id: participant.id,
       })
       onLanjut()
     } catch (err) {
-      setError(err.message || 'Gagal mendaftar. Silakan coba lagi.')
+      setSubmitError(
+        err instanceof ApiError
+          ? err.message
+          : 'Registrasi gagal. Periksa koneksi lalu coba lagi.'
+      )
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleMasuk = async (e) => {
-    e.preventDefault()
-    const t = tokenMasuk.trim().toUpperCase()
-    setPesanMasuk('')
-    if (!POLA_TOKEN.test(t)) {
-      setPesanMasuk('Kode tidak ditemukan. Periksa lagi penulisannya.')
-      return
-    }
-    setLoadingMasuk(true)
-    try {
-      const profil = await getParticipant(t)
-      const p = profil?.participant
-      const data = await getProgress(t)
-      try {
-        localStorage.setItem(TOKEN_KEY, t)
-      } catch {
-        /* abaikan */
-      }
-      setPeserta({
-        nickname: p?.nickname || p?.nama || '',
-        track: p?.track ?? 1,
-        classCode: p?.classCode || '',
-        token: t,
-      })
-      onMasuk(data?.progress ? mapProgres(data.progress) : undefined)
-    } catch (err) {
-      if (err?.message && /404|tidak ditemukan/i.test(err.message)) {
-        setPesanMasuk('Kode tidak ditemukan. Periksa lagi penulisannya.')
-      } else {
-        setPesanMasuk('Kode tidak ditemukan. Periksa lagi penulisannya.')
-      }
-    } finally {
-      setLoadingMasuk(false)
+      submittingRef.current = false
+      setSubmitLoading(false)
     }
   }
 
@@ -153,12 +149,12 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                   Kenalan dulu, yuk!
                 </h1>
                 <p className="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
-                  Privasimu adalah prioritas nomor satu kami. Belajar tangkis penipuan digital tanpa rasa
-                  waswas: <strong className="text-on-surface font-semibold">tanpa nama asli, tanpa nomor
-                    WhatsApp, tanpa email</strong>, dan seluruh hasil skor dijamin anonim.
+                  Cukup isi nama panggilan saja. <strong className="text-on-surface font-semibold">Tidak ada nama
+                    asli, nomor WhatsApp, maupun email</strong> yang kami minta, dan skor hasil latihanmu tetap
+                  tersimpan anonim.
                 </p>
               </div>
-              {/* Hero Photo with Tactile Framing & Floating Micro Badge */}
+              {/* Hero Photo with Tactile Framing */}
               <div
                 className="relative w-full rounded-2xl bg-surface-white p-space-md shadow-md overflow-hidden reveal">
                 <div
@@ -168,17 +164,6 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                     src="/assets/FotoPagePerkenalan.png" />
                   <div
                     className="absolute inset-0 bg-gradient-to-t from-primary/70 via-primary/10 to-transparent">
-                  </div>
-                  <div
-                    className="absolute bottom-space-md left-space-md right-space-md p-space-sm rounded-lg bg-surface-white/95 backdrop-blur-md flex flex-wrap items-center justify-between gap-space-sm shadow-sm">
-                    <div className="flex items-center gap-space-xs">
-                      <span className="material-symbols-outlined text-primary text-[22px]">fingerprint</span>
-                      <span className="font-label-sm text-label-sm text-on-surface">Data sesi dihapus
-                        otomatis saat keluar</span>
-                    </div>
-                    <span
-                      className="font-label-sm text-label-sm text-tertiary font-bold bg-safe-green-light px-space-xs py-0.5 rounded">Enkripsi
-                      Klien</span>
                   </div>
                 </div>
               </div>
@@ -206,7 +191,7 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                     <span className="font-label-md text-label-md text-on-surface font-bold leading-snug">Belajar Mandiri
                       Tanpa Kode</span>
                     <span className="font-body-sm text-body-sm text-text-muted leading-relaxed">Ingin belajar
-                      sendiri? Langsung klik "Mulai Belajar & Tes" tanpa memasukkan kode kelas.</span>
+                      sendiri? Langsung klik "Mulai Belajar &amp; Tes" tanpa memasukkan kode kelas.</span>
                   </div>
                 </div>
                 <div
@@ -315,18 +300,22 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                       </div>
                       <input
                         className="w-full h-[52px] pl-12 pr-space-md rounded-xl bg-surface-white text-on-surface font-body-md text-body-md uppercase tracking-wider shadow-sm focus:outline-none focus:bg-surface-container-low transition-all"
-                        id="communityCodeInput" value={code} onChange={(e) => handleCodeChange(e.target.value)}
+                        id="communityCodeInput" value={code} onChange={(e) => setCode(e.target.value)}
                         placeholder="Contoh: KOM-7821" type="text" />
                     </div>
                     {/* State feedback / Hint area */}
                     {clean && (
-                      <div className={`flex items-start gap-space-xs p-space-xs rounded-lg ${codeValid ? 'bg-safe-green-light text-tertiary' : 'bg-warning-yellow-light text-secondary'}`}>
-                        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">
-                          {codeValid ? 'check_circle' : 'info'}
+                      <div className={`flex items-start gap-space-xs p-space-xs rounded-lg ${codeValid ? 'bg-safe-green-light text-tertiary' : kodeStatus === 'loading' ? 'bg-surface-container-low text-text-muted' : 'bg-warning-yellow-light text-secondary'}`}>
+                        <span className={`material-symbols-outlined text-[18px] shrink-0 mt-0.5 ${kodeStatus === 'loading' ? 'animate-spin' : ''}`}>
+                          {kodeStatus === 'loading' ? 'progress_activity' : codeValid ? 'check_circle' : 'info'}
                         </span>
                         <span className="font-body-sm text-body-sm leading-snug">
-                          {codeValid ? (
-                            <>Kode Komunitas valid: <strong>Sesi Pelatihan {clean}</strong></>
+                          {kodeStatus === 'loading' ? (
+                            'Memeriksa kode kelas...'
+                          ) : codeValid ? (
+                            <>Kode Komunitas valid: <strong>{kodeLabel || `Sesi Pelatihan ${clean}`}</strong></>
+                          ) : kodeStatus === 'error' ? (
+                            kodePesan || 'Gagal memeriksa kode kelas. Coba lagi sebentar lagi.'
                           ) : (
                             'Kode tidak ditemukan, cek lagi atau kosongkan saja bila belajar mandiri.'
                           )}
@@ -353,67 +342,30 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                       </p>
                     </div>
                   </div>
-                  {/* Pesan Error */}
-                  {error && (
-                    <div className="flex items-start gap-space-xs p-space-xs rounded-lg bg-warning-yellow-light text-secondary">
-                      <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
-                      <span className="font-body-sm text-body-sm leading-snug">{error}</span>
-                    </div>
-                  )}
                   {/* Tombol Aksi */}
                   <div className="flex flex-col gap-space-md pt-space-xs">
+                    {submitError && (
+                      <div className="flex items-start gap-space-xs p-space-sm rounded-xl bg-warning-yellow-light text-secondary">
+                        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                        <span className="font-body-sm text-body-sm leading-snug">{submitError}</span>
+                      </div>
+                    )}
                     <button
-                      className={`w-full h-[52px] rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg hover:bg-primary shadow-sm hover:shadow-md flex items-center justify-center gap-space-sm transition-all ${nickname.trim() && !loading ? '' : 'opacity-70'}`}
-                      id="submitButton" type="submit" disabled={loading}>
-                      <span>{loading ? 'Memuat...' : 'Mulai Belajar & Tes'}</span>
-                      <span className="material-symbols-outlined text-[20px]">{loading ? 'hourglass_top' : 'arrow_forward'}</span>
+                      className={`w-full h-[52px] rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg hover:bg-primary shadow-sm hover:shadow-md flex items-center justify-center gap-space-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed ${nickname.trim() ? '' : 'opacity-70'}`}
+                      disabled={submitLoading}
+                      id="submitButton" type="submit">
+                      <span>{submitLoading ? 'Mendaftarkan...' : 'Mulai Belajar & Tes'}</span>
+                      <span className={`material-symbols-outlined text-[20px] ${submitLoading ? 'animate-spin' : ''}`}>
+                        {submitLoading ? 'progress_activity' : 'arrow_forward'}
+                      </span>
                     </button>
                     <a className="w-full py-space-sm text-center font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center gap-space-xs cursor-pointer"
                       href="#" onClick={(e) => { e.preventDefault(); onHome() }}>
                       <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                       <span>Kembali ke Beranda</span>
                     </a>
-                    <button
-                      className="w-full py-space-sm text-center font-label-md text-label-md text-text-muted hover:text-primary transition-colors flex items-center justify-center gap-space-xs"
-                      onClick={onMulaiBaru} type="button">
-                      <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-                      <span>Mulai sebagai peserta baru</span>
-                    </button>
                   </div>
                 </form>
-                {/* Sudah punya kode? Masuk dengan kode */}
-                <div className="flex flex-col gap-space-sm pt-space-md border-t border-border-subtle/50">
-                  <span className="font-label-md text-label-md text-on-surface flex items-center gap-space-xs">
-                    <span className="material-symbols-outlined text-[18px] text-primary">key</span>
-                    Sudah punya kode? Masuk dengan kode
-                  </span>
-                  <form className="flex flex-col gap-space-xs" onSubmit={handleMasuk}>
-                    <div className="flex flex-col sm:flex-row gap-space-xs">
-                      <div className="relative flex items-center flex-1">
-                        <div
-                          className="absolute left-space-md text-text-muted flex items-center pointer-events-none">
-                          <span className="material-symbols-outlined text-[22px]">vpn_key</span>
-                        </div>
-                        <input
-                          className="w-full h-[52px] pl-12 pr-space-md rounded-xl bg-surface-white text-on-surface font-mono font-body-md text-body-md uppercase tracking-wider shadow-sm focus:outline-none focus:bg-surface-container-low transition-all"
-                          value={tokenMasuk} onChange={(e) => { setTokenMasuk(e.target.value); setPesanMasuk('') }}
-                          placeholder="TKP-XXXXXXXX" type="text" />
-                      </div>
-                      <button
-                        className="h-[52px] px-space-lg rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md flex items-center justify-center gap-space-xs transition-colors shrink-0"
-                        type="submit" disabled={loadingMasuk}>
-                        <span>{loadingMasuk ? 'Memuat...' : 'Masuk'}</span>
-                        <span className="material-symbols-outlined text-[18px]">{loadingMasuk ? 'hourglass_top' : 'login'}</span>
-                      </button>
-                    </div>
-                    {pesanMasuk && (
-                      <div className="flex items-start gap-space-xs p-space-xs rounded-lg bg-warning-yellow-light text-secondary">
-                        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
-                        <span className="font-body-sm text-body-sm leading-snug">{pesanMasuk}</span>
-                      </div>
-                    )}
-                  </form>
-                </div>
               </div>
             </div>
           </div>
@@ -440,7 +392,7 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
               </div>
               <button
                 className="h-11 px-space-md rounded-xl bg-surface-card-subtle hover:bg-surface-container text-primary font-label-sm text-label-sm flex items-center gap-space-xs transition-colors"
-                onClick={() => setDemoId(`TKP-${Math.floor(1000 + Math.random() * 9000)}-X`)} title="Acak ID Baru" type="button">
+                onClick={() => setDemoId(generateParticipantId())} title="Acak ID Baru" type="button">
                 <span className="material-symbols-outlined text-[18px]">cached</span>
                 <span className="hidden sm:inline">Acak Baru</span>
               </button>

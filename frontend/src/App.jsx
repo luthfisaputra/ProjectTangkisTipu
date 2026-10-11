@@ -3,126 +3,104 @@ import Navbar from './components/Navbar.jsx'
 import Hero from './components/Hero.jsx'
 import JalurBelajar from './components/JalurBelajar.jsx'
 import SimulasiChat from './components/SimulasiChat.jsx'
-import KanalLapor from './components/KanalLapor.jsx'
+import KanalLaporPage from './components/KanalLaporPage.jsx'
 import Footer from './components/Footer.jsx'
 import BelajarModus from './components/BelajarModus.jsx'
+import BelajarModusPopuler from './components/BelajarModusPopuler.jsx'
 import ModulDetail from './components/ModulDetail.jsx'
+import SimulasiChatModul from './components/SimulasiChatModul.jsx'
+import SimulasiKasusInteraktif from './components/SimulasiKasusInteraktif.jsx'
+import Komunitas from './components/Komunitas.jsx'
 import UjiSkorTes from './components/UjiSkorTes.jsx'
 import SimpanKode from './components/SimpanKode.jsx'
 import DashboardPeserta from './components/DashboardPeserta.jsx'
 import Pretest from './components/Pretest.jsx'
+import LoginPage from './components/LoginPage.jsx'
+import DashboardAdmin from './components/DashboardAdmin.jsx'
+import KodeKelasAdmin from './components/KodeKelasAdmin.jsx'
+import SetSoalAdmin from './components/SetSoalAdmin.jsx'
+import { DAFTAR_SOAL, SET_SOAL } from './data/setSoal.js'
 import { modul01Pelajar } from './data/modul01Pelajar.jsx'
-import { getParticipant, getProgress, updateProgress } from './api.js'
+import { modul02Pelajar } from './data/modul02Pelajar.jsx'
+import { modul03Pelajar } from './data/modul03Pelajar.jsx'
+import { modul04Pelajar } from './data/modul04Pelajar.jsx'
+import { modul01Dewasa } from './data/modul01Dewasa.jsx'
+import { modul02Dewasa } from './data/modul02Dewasa.jsx'
+import { modul03Dewasa } from './data/modul03Dewasa.jsx'
+import { modul04Dewasa } from './data/modul04Dewasa.jsx'
+import { modul01Lansia } from './data/modul01Lansia.jsx'
+import { modul02Lansia } from './data/modul02Lansia.jsx'
+import { modul03Lansia } from './data/modul03Lansia.jsx'
+import { modul04Lansia } from './data/modul04Lansia.jsx'
+import { SIMULASI_CHAT_MODUL } from './data/simulasiChatModul.jsx'
 
 const MODUL = {
   'pelajar-01': modul01Pelajar,
+  'pelajar-02': modul02Pelajar,
+  'pelajar-03': modul03Pelajar,
+  'pelajar-04': modul04Pelajar,
+  'dewasa-01': modul01Dewasa,
+  'dewasa-02': modul02Dewasa,
+  'dewasa-03': modul03Dewasa,
+  'dewasa-04': modul04Dewasa,
+  'lansia-01': modul01Lansia,
+  'lansia-02': modul02Lansia,
+  'lansia-03': modul03Lansia,
+  'lansia-04': modul04Lansia,
 }
 
-const TOKEN_KEY = 'tangkistipu_token'
+const PESERTA_STORAGE_KEY = 'tangkistipu.peserta'
 
-const bacaToken = () => {
+function bacaPesertaTersimpan() {
   try {
-    return localStorage.getItem(TOKEN_KEY)
+    const raw = window.localStorage.getItem(PESERTA_STORAGE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    return data && data.token ? data : null
   } catch {
     return null
   }
 }
 
-const simpanToken = (token) => {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token)
-    else localStorage.removeItem(TOKEN_KEY)
-  } catch {
-    /* abaikan */
-  }
-}
-
-const mapProgres = (p) => ({
-  pretest: p?.pretest ? { skor: p.pretest } : null,
-  modusDibaca: p?.modusDibaca ?? 0,
-  skenario: p?.skenario ?? 0,
-  posttest: p?.posttest ? { skor: p.posttest } : null,
-})
-
 export default function App() {
   const [feedback, setFeedback] = useState(false)
   const [page, setPage] = useState('beranda')
   const [modulId, setModulId] = useState(null)
+  const [simulasiModulId, setSimulasiModulId] = useState(null)
   const [tesStep, setTesStep] = useState(1)
-  const [peserta, setPeserta] = useState({ nickname: '', track: 1, classCode: '', token: '' })
+  const [peserta, setPeserta] = useState(
+    () => bacaPesertaTersimpan() || { nickname: '', track: 1, classCode: '', token: '' }
+  )
+  // State set soal diangkat ke App supaya daftar kode kelas di Dashboard Admin
+  // ikut ter-update saat set ditambah/dihapus di halaman Set Soal.
+  const [sets, setSets] = useState(SET_SOAL)
+  const [bankSoal, setBankSoal] = useState(() => SET_SOAL.reduce((acc, s) => ({ ...acc, [s.id]: DAFTAR_SOAL }), {}))
+  const [progres, setProgres] = useState({ pretest: null, modusIds: [], skenario: 0, posttest: null })
 
-  const simpanPeserta = (data) => {
-    setPeserta(data)
-    if (data?.token) simpanToken(data.token)
-  }
-  const [progres, setProgres] = useState({ pretest: null, modusDibaca: 0, skenario: 0, posttest: null })
+  const selesaikanPretest = (skor) => setProgres((p) => ({ ...p, pretest: { skor } }))
 
-  const [pesanError, setPesanError] = useState('')
-
-  const selesaikanPretest = async (skor) => {
-    setProgres((p) => ({ ...p, pretest: { skor } }))
-    const token = peserta?.token
-    if (!token) return
-    try {
-      const data = await getProgress(token)
-      if (data?.progress) setProgres(mapProgres(data.progress))
-    } catch {
-      /* abaikan, tampilan tetap */
-    }
+  const tandaiModusDibaca = (id) => {
+    setProgres((p) => {
+      if (p.modusIds.includes(id)) return p
+      return { ...p, modusIds: [...p.modusIds, id] }
+    })
   }
 
-  const kirimProgres = async (nilai) => {
-    const token = peserta?.token
-    if (!token) return
-    try {
-      await updateProgress(token, nilai)
-      setPesanError('')
-    } catch (err) {
-      setPesanError(err?.message || 'Gagal menyimpan progres.')
-    }
-  }
-
-  const tambahModus = () => {
-    const nilai = Math.min(progres.modusDibaca + 1, 8)
-    setProgres((p) => ({ ...p, modusDibaca: nilai }))
-    kirimProgres({ modusDibaca: nilai, skenario: progres.skenario })
-  }
-
-  const tambahSkenario = () => {
-    const nilai = Math.min(progres.skenario + 1, 8)
-    setProgres((p) => ({ ...p, skenario: nilai }))
-    kirimProgres({ modusDibaca: progres.modusDibaca, skenario: nilai })
-  }
-
+  const tandaiSkenarioSelesai = () => setProgres((p) => ({ ...p, skenario: Math.min(p.skenario + 1, 8) }))
   const selesaikanPosttest = () => setProgres((p) => ({ ...p, posttest: { skor: 8 } }))
 
+  // Simpan identitas peserta (termasuk token dari backend) agar bisa dipulihkan.
   useEffect(() => {
-    const token = bacaToken()
-    if (!token) return
-    let aktif = true
-    ;(async () => {
-      try {
-        const profil = await getParticipant(token)
-        if (!aktif) return
-        const p = profil?.participant
-        setPeserta({
-          nickname: p?.nickname || p?.nama || '',
-          track: p?.track ?? 1,
-          classCode: p?.classCode || '',
-          token,
-        })
-        const data = await getProgress(token)
-        if (aktif && data?.progress) setProgres(mapProgres(data.progress))
-      } catch (err) {
-        if (err?.message && /404|tidak ditemukan/i.test(err.message)) {
-          simpanToken(null)
-        }
+    try {
+      if (peserta && peserta.token) {
+        window.localStorage.setItem(PESERTA_STORAGE_KEY, JSON.stringify(peserta))
+      } else {
+        window.localStorage.removeItem(PESERTA_STORAGE_KEY)
       }
-    })()
-    return () => {
-      aktif = false
+    } catch {
+      // Abaikan bila localStorage tidak tersedia.
     }
-  }, [])
+  }, [peserta])
 
   useEffect(() => {
     const els = document.querySelectorAll('.reveal:not(.is-visible)')
@@ -143,25 +121,28 @@ export default function App() {
   })
 
   const navigate = (path) => {
-    const tujuan = ['belajar-modus', 'uji-skor-tes', 'dashboard', 'pretest'].includes(path) ? path : 'beranda'
-    setPage(tujuan === 'uji-skor-tes' && bacaToken() ? 'dashboard' : tujuan)
-    setModulId(null)
-    setTesStep(1)
-    window.scrollTo({ top: 0 })
-  }
-
-  const mulaiBaru = () => {
-    const lanjut = window.confirm(
-      'Progres di perangkat ini akan dilepas dan kamu mulai sebagai peserta baru. Kode lamamu tidak bisa dipakai lagi di perangkat ini. Lanjutkan?'
+    setPage(
+      [
+        'belajar-modus',
+        'belajar-modus-populer',
+        'simulasi-kasus',
+        'komunitas',
+        'uji-skor-tes',
+        'dashboard',
+        'pretest',
+        'kanal-lapor',
+        'login',
+        'admin',
+        'set-soal',
+        'kode-kelas',
+      ].includes(path)
+        ? path
+        : 'beranda'
     )
-    if (!lanjut) return
-    simpanToken(null)
-    setPeserta({ nickname: '', track: 1, classCode: '', token: '' })
-    setProgres({ pretest: null, modusDibaca: 0, skenario: 0, posttest: null })
-    setPesanError('')
-    setPage('uji-skor-tes')
     setModulId(null)
+    setSimulasiModulId(null)
     setTesStep(1)
+    if (path === 'uji-skor-tes') setProgres({ pretest: null, modusIds: [], skenario: 0, posttest: null })
     window.scrollTo({ top: 0 })
   }
 
@@ -176,21 +157,68 @@ export default function App() {
     window.scrollTo({ top: 0 })
   }
 
-  const gotoSimulasi = () => {
+  // Buka simulasi chat khusus modul (dari detail modul belajar)
+  const openSimulasiModul = (id) => {
+    if (!SIMULASI_CHAT_MODUL[id]) return
+    setSimulasiModulId(id)
+    window.scrollTo({ top: 0 })
+  }
+
+  const closeSimulasiModul = () => {
+    setSimulasiModulId(null)
+    window.scrollTo({ top: 0 })
+  }
+
+  const backToBerandaFromSimulasi = () => {
+    setSimulasiModulId(null)
     setModulId(null)
     setPage('beranda')
     window.scrollTo({ top: 0 })
-    setTimeout(() => {
-      document.getElementById('simulasi-chat')?.scrollIntoView({ behavior: 'smooth' })
-    }, 120)
   }
+
+  // Navbar & Footer disembunyikan di halaman full-bleed (pre-test, login, admin).
+  // Footer juga disembunyikan di tampilan simulasi chat per modul.
+  const chromeVisible = !['pretest', 'login', 'admin', 'set-soal', 'kode-kelas'].includes(page)
 
   return (
     <>
-      {page !== 'pretest' && <Navbar active={page === 'dashboard' ? 'uji-skor-tes' : page} onNavigate={navigate} />}
-      <div key={`${page}-${modulId || 'none'}-${tesStep}`} className="page-enter">
-        {modulId ? (
-          <ModulDetail content={MODUL[modulId]} onBack={closeModul} onSimulasi={gotoSimulasi} />
+      {chromeVisible && (
+        <Navbar
+          active={
+            page === 'dashboard'
+              ? 'uji-skor-tes'
+              : page === 'belajar-modus-populer'
+                ? 'belajar-modus'
+                : page
+          }
+          onNavigate={navigate}
+        />
+      )}
+      <div key={`${page}-${modulId || 'none'}-${simulasiModulId || 'none'}-${tesStep}`} className="page-enter">
+        {simulasiModulId ? (
+          <SimulasiChatModul
+            content={SIMULASI_CHAT_MODUL[simulasiModulId]}
+            onBack={closeSimulasiModul}
+            onModul={closeSimulasiModul}
+            onBeranda={backToBerandaFromSimulasi}
+          />
+        ) : modulId ? (
+          <ModulDetail content={MODUL[modulId]} onBack={closeModul} onSimulasi={openSimulasiModul} />
+        ) : page === 'login' ? (
+          <LoginPage onKembali={() => navigate('beranda')} onMasuk={() => navigate('admin')} />
+        ) : page === 'admin' ? (
+          <DashboardAdmin onKeluar={() => navigate('login')} onNavigate={navigate} sets={sets} />
+        ) : page === 'set-soal' ? (
+          <SetSoalAdmin
+            bankSoal={bankSoal}
+            onKeluar={() => navigate('login')}
+            onNavigate={navigate}
+            sets={sets}
+            setBankSoal={setBankSoal}
+            setSets={setSets}
+          />
+        ) : page === 'kode-kelas' ? (
+          <KodeKelasAdmin onKeluar={() => navigate('login')} onNavigate={navigate} sets={sets} />
         ) : page === 'pretest' ? (
           <Pretest
             token={peserta?.token}
@@ -204,16 +232,31 @@ export default function App() {
         ) : page === 'dashboard' ? (
           <DashboardPeserta
             peserta={peserta}
-            progres={progres}
+            progres={{ ...progres, modusDibaca: progres.modusIds.length }}
             onSelesaiPretest={() => navigate('pretest')}
-            onTambahModus={tambahModus}
-            onTambahSkenario={tambahSkenario}
             onSelesaiPosttest={selesaikanPosttest}
             onModul={() => navigate('belajar-modus')}
-            onSimulasi={() => gotoSimulasi()}
+            onModulPopuler={() => navigate('belajar-modus-populer')}
+            onSimulasiKasus={() => navigate('simulasi-kasus')}
+            onSimulasi={() => navigate('komunitas')}
             onHome={() => navigate('uji-skor-tes')}
-            onMulaiBaru={mulaiBaru}
           />
+        ) : page === 'simulasi-kasus' ? (
+          <SimulasiKasusInteraktif
+            track={peserta.track}
+            sudahDijalankan={progres.skenario >= 1}
+            onSelesai={tandaiSkenarioSelesai}
+            onBack={() => navigate('dashboard')}
+          />
+        ) : page === 'belajar-modus-populer' ? (
+          <BelajarModusPopuler
+            track={peserta.track}
+            readIds={progres.modusIds}
+            onSelesaiSatu={tandaiModusDibaca}
+            onBack={() => navigate('dashboard')}
+          />
+        ) : page === 'komunitas' ? (
+          <Komunitas />
         ) : page === 'uji-skor-tes' ? (
           tesStep === 2 ? (
             <SimpanKode
@@ -223,35 +266,32 @@ export default function App() {
             />
           ) : (
             <UjiSkorTes
-              setPeserta={simpanPeserta}
+              setPeserta={setPeserta}
               onLanjut={() => { setTesStep(2); window.scrollTo({ top: 0 }) }}
               onHome={() => navigate('beranda')}
-              onMulaiBaru={mulaiBaru}
-              onMasuk={(progresBaru) => {
-                if (progresBaru) setProgres(progresBaru)
-                setPage('dashboard')
-                setModulId(null)
-                setTesStep(1)
-                window.scrollTo({ top: 0 })
-              }}
             />
           )
+        ) : page === 'kanal-lapor' ? (
+          <KanalLaporPage
+            onHome={() => navigate('beranda')}
+            onSimulasi={() => navigate('simulasi-kasus')}
+            onBelajar={() => navigate('belajar-modus')}
+          />
         ) : page === 'belajar-modus' ? (
           <BelajarModus onHome={() => navigate('beranda')} onOpenModul={openModul} />
         ) : (
           <>
-            <Hero />
+            <Hero onBelajar={() => navigate('belajar-modus')} />
             <main className="w-full bg-surface-cream min-h-screen">
               <div className="flex flex-col w-full">
                 <JalurBelajar />
                 <SimulasiChat feedback={feedback} setFeedback={setFeedback} />
-                <KanalLapor />
               </div>
             </main>
           </>
         )}
       </div>
-      {page !== 'pretest' && <Footer />}
+      {chromeVisible && !simulasiModulId && <Footer />}
     </>
   )
 }
