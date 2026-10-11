@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { TRACKS, generateParticipantId } from '../data/jalurBelajar.jsx'
-
-const VALID_CODES = ['KOM-7821', 'GURU-01', 'OJK-AMAN']
+import { TRACKS } from '../data/jalurBelajar.jsx'
+import { validateClassCode, createParticipant } from '../api.js'
 
 const HELP_TEXT = 'Kode Kelas / Komunitas diberikan oleh fasilitator pelatihan agar nilaimu terekap ke dashboard kelompok. Jika kamu belajar sendiri, kolom ini boleh dikosongkan!'
 
@@ -13,24 +12,63 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
   const [showModal, setShowModal] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [demoId, setDemoId] = useState('TKP-8924-X')
+  const [codeValid, setCodeValid] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const clean = code.trim().toUpperCase()
-  const codeValid = VALID_CODES.includes(clean)
 
-  const handleSubmit = (e) => {
+  const handleCodeChange = async (value) => {
+    setCode(value)
+    setError('')
+    const c = value.trim().toUpperCase()
+    if (!c) {
+      setCodeValid(false)
+      return
+    }
+    try {
+      const res = await validateClassCode(c)
+      setCodeValid(Boolean(res?.valid))
+    } catch {
+      setCodeValid(false)
+    }
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const nick = nickname.trim()
     if (!nick) {
       window.alert('Silakan isi nama panggilan terlebih dahulu.')
       return
     }
-    setPeserta({
-      nickname: nick,
-      track,
-      classCode: clean,
-      token: generateParticipantId(),
-    })
-    onLanjut()
+    setError('')
+    setLoading(true)
+    try {
+      if (clean) {
+        const check = await validateClassCode(clean)
+        if (!check?.valid) {
+          setCodeValid(false)
+          setError('Kode kelas tidak ditemukan. Periksa lagi atau kosongkan jika belajar sendiri.')
+          return
+        }
+      }
+      const res = await createParticipant({
+        nama: nick,
+        kelas: '',
+        classCode: clean || undefined,
+      })
+      setPeserta({
+        nickname: nick,
+        track,
+        classCode: clean,
+        token: res?.token || res?.participant?.token || '',
+      })
+      onLanjut()
+    } catch (err) {
+      setError(err.message || 'Gagal mendaftar. Silakan coba lagi.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const openModal = () => {
@@ -118,7 +156,7 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                     <span className="font-label-md text-label-md text-on-surface font-bold leading-snug">Belajar Mandiri
                       Tanpa Kode</span>
                     <span className="font-body-sm text-body-sm text-text-muted leading-relaxed">Ingin belajar
-                      sendiri? Langsung klik "Mulai Belajar &amp; Tes" tanpa memasukkan kode kelas.</span>
+                      sendiri? Langsung klik "Mulai Belajar & Tes" tanpa memasukkan kode kelas.</span>
                   </div>
                 </div>
                 <div
@@ -227,7 +265,7 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                       </div>
                       <input
                         className="w-full h-[52px] pl-12 pr-space-md rounded-xl bg-surface-white text-on-surface font-body-md text-body-md uppercase tracking-wider shadow-sm focus:outline-none focus:bg-surface-container-low transition-all"
-                        id="communityCodeInput" value={code} onChange={(e) => setCode(e.target.value)}
+                        id="communityCodeInput" value={code} onChange={(e) => handleCodeChange(e.target.value)}
                         placeholder="Contoh: KOM-7821" type="text" />
                     </div>
                     {/* State feedback / Hint area */}
@@ -265,13 +303,20 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                       </p>
                     </div>
                   </div>
+                  {/* Pesan Error */}
+                  {error && (
+                    <div className="flex items-start gap-space-xs p-space-xs rounded-lg bg-warning-yellow-light text-secondary">
+                      <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                      <span className="font-body-sm text-body-sm leading-snug">{error}</span>
+                    </div>
+                  )}
                   {/* Tombol Aksi */}
                   <div className="flex flex-col gap-space-md pt-space-xs">
                     <button
-                      className={`w-full h-[52px] rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg hover:bg-primary shadow-sm hover:shadow-md flex items-center justify-center gap-space-sm transition-all ${nickname.trim() ? '' : 'opacity-70'}`}
-                      id="submitButton" type="submit">
-                      <span>Mulai Belajar &amp; Tes</span>
-                      <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                      className={`w-full h-[52px] rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg hover:bg-primary shadow-sm hover:shadow-md flex items-center justify-center gap-space-sm transition-all ${nickname.trim() && !loading ? '' : 'opacity-70'}`}
+                      id="submitButton" type="submit" disabled={loading}>
+                      <span>{loading ? 'Memuat...' : 'Mulai Belajar & Tes'}</span>
+                      <span className="material-symbols-outlined text-[20px]">{loading ? 'hourglass_top' : 'arrow_forward'}</span>
                     </button>
                     <a className="w-full py-space-sm text-center font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center gap-space-xs cursor-pointer"
                       href="#" onClick={(e) => { e.preventDefault(); onHome() }}>
@@ -306,7 +351,7 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
               </div>
               <button
                 className="h-11 px-space-md rounded-xl bg-surface-card-subtle hover:bg-surface-container text-primary font-label-sm text-label-sm flex items-center gap-space-xs transition-colors"
-                onClick={() => setDemoId(generateParticipantId())} title="Acak ID Baru" type="button">
+                onClick={() => setDemoId(`TKP-${Math.floor(1000 + Math.random() * 9000)}-X`)} title="Acak ID Baru" type="button">
                 <span className="material-symbols-outlined text-[18px]">cached</span>
                 <span className="hidden sm:inline">Acak Baru</span>
               </button>

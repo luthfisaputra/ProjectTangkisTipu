@@ -22,7 +22,16 @@ export async function createParticipant(req, res, next) {
         'SELECT code FROM class_codes WHERE code = $1 AND active = TRUE LIMIT 1',
         [classCode],
       );
-      if (rows.length > 0) validClassCode = rows[0].code;
+      if (rows.length === 0) {
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_CLASS_CODE',
+            message:
+              'Kode kelas tidak ditemukan atau tidak aktif. Periksa lagi atau kosongkan jika belajar sendiri.',
+          },
+        });
+      }
+      validClassCode = rows[0].code;
     }
 
     const token = await generateUniqueToken();
