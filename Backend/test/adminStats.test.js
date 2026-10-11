@@ -155,6 +155,72 @@ test('getKategoriSalah mengagregasi per kategori', async () => {
   assert.equal(res.body.kategori[0].salah, 2);
 });
 
+// BE-14: jawaban kosong (selected_option NULL) tidak boleh dihitung salah.
+// Q1: 1 benar + 2 salah + 3 kosong -> salah=2, dijawab=3, persenSalah=66.7
+// Q2: 0 benar + 0 salah + 4 kosong -> tidak muncul (HAVING salah > 0)
+const DATASET_KOSONG = {
+  soal: [{ id: 'Q1', kategori: 'APK Palsu', salah: 2, dijawab: 3 }],
+  kategori: [{ kategori: 'APK Palsu', salah: 2, dijawab: 3 }],
+};
+
+function fakeQueryKosong(text) {
+  if (text.includes('GROUP BY q.id, q.kategori')) {
+    return Promise.resolve({ rows: DATASET_KOSONG.soal });
+  }
+  if (text.includes('GROUP BY COALESCE(q.kategori')) {
+    return Promise.resolve({ rows: DATASET_KOSONG.kategori });
+  }
+  return Promise.resolve({ rows: [] });
+}
+
+test('getSoalSalah mengabaikan jawaban kosong pada salah dan persenSalah', async () => {
+  __setQueryImpl(fakeQueryKosong);
+  const res = mockRes();
+  await getSoalSalah({ query: { page: 1, limit: 20 } }, res, (e) => {
+    if (e) throw e;
+  });
+  __setQueryImpl(null);
+  const q1 = res.body.soal[0];
+  assert.equal(q1.salah, 2);
+  assert.equal(q1.dijawab, 3);
+  assert.equal(q1.persenSalah, 66.7);
+  assert.ok(q1.persenSalah <= 100);
+});
+
+test('getKategoriSalah mengabaikan jawaban kosong dan tidak melebihi 100%', async () => {
+  __setQueryImpl(fakeQueryKosong);
+  const res = mockRes();
+  await getKategoriSalah({ query: { page: 1, limit: 20 } }, res, (e) => {
+    if (e) throw e;
+  });
+  __setQueryImpl(null);
+  const k = res.body.kategori[0];
+  assert.equal(k.salah, 2);
+  assert.equal(k.dijawab, 3);
+  assert.equal(k.persenSalah, 66.7);
+  assert.ok(k.persenSalah <= 100);
+});
+
+test('query soal/kategori salah memakai filter selected_option IS NOT NULL', async () => {
+  const teks = [];
+  __setQueryImpl((text) => {
+    teks.push(text);
+    return Promise.resolve({ rows: [] });
+  });
+  const res = mockRes();
+  await getSoalSalah({ query: { page: 1, limit: 20 } }, res, (e) => {
+    if (e) throw e;
+  });
+  await getKategoriSalah({ query: { page: 1, limit: 20 } }, res, (e) => {
+    if (e) throw e;
+  });
+  __setQueryImpl(null);
+  for (const sql of teks) {
+    assert.match(sql, /selected_option IS NOT NULL AND a\.is_correct = FALSE/);
+    assert.match(sql, /HAVING COUNT\(\*\) FILTER \(WHERE a\.selected_option IS NOT NULL AND a\.is_correct = FALSE\) > 0/);
+  }
+});
+
 /* ---- Ringkasan kode kelas ---- */
 
 test('getRingkasanKodeKelas tidak mengekspos identitas peserta', async () => {

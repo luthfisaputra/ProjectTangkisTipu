@@ -194,13 +194,13 @@ export async function getSoalSalah(req, res, next) {
 
     const { rows } = await query(
       `SELECT q.id, q.kategori,
-              COUNT(*) FILTER (WHERE a.is_correct = FALSE)::int AS salah,
+              COUNT(*) FILTER (WHERE a.selected_option IS NOT NULL AND a.is_correct = FALSE)::int AS salah,
               COUNT(*) FILTER (WHERE a.selected_option IS NOT NULL)::int AS dijawab
        FROM answers a
        JOIN test_attempts t ON t.id = a.attempt_id AND t.score IS NOT NULL
        JOIN questions q ON q.id = a.question_id
        GROUP BY q.id, q.kategori
-       HAVING COUNT(*) FILTER (WHERE a.is_correct = FALSE) > 0
+       HAVING COUNT(*) FILTER (WHERE a.selected_option IS NOT NULL AND a.is_correct = FALSE) > 0
        ORDER BY salah DESC, q.id ASC
        LIMIT $1 OFFSET $2`,
       [limit, offset],
@@ -232,13 +232,13 @@ export async function getKategoriSalah(req, res, next) {
 
     const { rows } = await query(
       `SELECT COALESCE(q.kategori, 'Tanpa Kategori') AS kategori,
-              COUNT(*) FILTER (WHERE a.is_correct = FALSE)::int AS salah,
+              COUNT(*) FILTER (WHERE a.selected_option IS NOT NULL AND a.is_correct = FALSE)::int AS salah,
               COUNT(*) FILTER (WHERE a.selected_option IS NOT NULL)::int AS dijawab
        FROM answers a
        JOIN test_attempts t ON t.id = a.attempt_id AND t.score IS NOT NULL
        JOIN questions q ON q.id = a.question_id
        GROUP BY COALESCE(q.kategori, 'Tanpa Kategori')
-       HAVING COUNT(*) FILTER (WHERE a.is_correct = FALSE) > 0
+       HAVING COUNT(*) FILTER (WHERE a.selected_option IS NOT NULL AND a.is_correct = FALSE) > 0
        ORDER BY salah DESC, kategori ASC
        LIMIT $1 OFFSET $2`,
       [limit, offset],
