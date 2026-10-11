@@ -73,15 +73,25 @@ async function ambilSetIds(code) {
   return rows.map((r) => r.set_id);
 }
 
+// Sinkronkan relasi kode kelas <-> set. Hanya menyentuh relasi yang berubah
+// agar relasi lain tidak terhapus tanpa sengaja.
 async function sinkronSet(client, code, setIds) {
   if (!Array.isArray(setIds)) return;
-  await client.query('DELETE FROM set_class_codes WHERE code = $1', [code]);
-  for (const setId of setIds) {
+  const target = [...new Set(setIds.map((s) => String(s).trim()).filter((s) => s.length > 0))];
+  const { rows } = await client.query('SELECT set_id FROM set_class_codes WHERE code = $1', [code]);
+  const saatIni = rows.map((r) => r.set_id);
+  const tambah = target.filter((s) => !saatIni.includes(s));
+  const hapus = saatIni.filter((s) => !target.includes(s));
+
+  for (const setId of tambah) {
     await client.query(
       `INSERT INTO set_class_codes (set_id, code) VALUES ($1, $2)
        ON CONFLICT (set_id, code) DO NOTHING`,
       [setId, code],
     );
+  }
+  for (const setId of hapus) {
+    await client.query('DELETE FROM set_class_codes WHERE code = $1 AND set_id = $2', [code, setId]);
   }
 }
 
