@@ -26,30 +26,30 @@ const LOCK_HINT = {
   pretest: 'Terkunci',
   modus: 'Selesaikan Pre-test dulu',
   simulasi: 'Selesaikan 8 Modus dulu',
-  posttest: 'Selesaikan 8 Skenario dulu',
+  posttest: 'Selesaikan Simulasi dulu',
 }
 
-function getSteps(progres, onPretest, onPosttest, onModus, onSkenario, notify) {
+function getSteps(progres, onPretest, onPosttest, onModulPopuler, onSimulasiKasus, notify) {
   const pretestDone = progres.pretest !== null
   const modusDone = progres.modusDibaca >= 8
-  const skenarioDone = progres.skenario >= 8
+  const skenarioDone = progres.skenario >= 1
   const posttestDone = progres.posttest !== null
 
   const step1 = pretestDone
-    ? { id: 'pretest', num: '1', state: 'done', title: 'Pre-test Kemampuan Awal', desc: '10 soal pilihan ganda telah dikerjakan untuk mengukur pemahaman awal rekayasa sosial.', badge: `Selesai • Skor: ${progres.pretest.skor}/10`, icon: 'check_circle', badgeIcon: 'done_all', actionLabel: 'Lihat Hasil Jawaban', actionIcon: 'visibility', onAction: () => notify('Halaman hasil pre-test akan segera dibuka.'), connectorClass: 'bg-tertiary' }
-    : { id: 'pretest', num: '1', state: 'active', title: 'Pre-test Kemampuan Awal', desc: '10 soal pilihan ganda untuk mengukur pemahaman awal rekayasa sosial. Boleh dilewati.', badge: 'Belum Dikerjakan', icon: 'edit_document', badgeIcon: 'bolt', actionLabel: 'Mulai Pre-test', actionIcon: 'arrow_forward', onAction: () => onPretest(), connectorClass: 'border-dashed border-outline-variant' }
+    ? { id: 'pretest', num: '1', state: 'done', title: 'Pre-test Kemampuan Awal', desc: '10 soal pilihan ganda telah dikerjakan untuk mengukur pemahaman awal rekayasa sosial.', badge: `Selesai • Skor: ${progres.pretest.skor}/${progres.pretest.total ?? 10}`, icon: 'check_circle', badgeIcon: 'done_all', actionLabel: 'Lihat Hasil Jawaban', actionIcon: 'visibility', onAction: () => notify('Halaman hasil pre-test akan segera dibuka.'), connectorClass: 'bg-tertiary' }
+    : { id: 'pretest', num: '1', state: 'active', title: 'Pre-test Kemampuan Awal', desc: '10 soal pilihan ganda untuk mengukur pemahaman awal rekayasa sosial.', badge: 'Belum Dikerjakan', icon: 'edit_document', badgeIcon: 'bolt', actionLabel: 'Mulai Pre-test', actionIcon: 'arrow_forward', onAction: () => onPretest(), connectorClass: 'border-dashed border-outline-variant' }
 
   const step2 = modusDone
-    ? { id: 'modus', num: '2', state: 'done', title: 'Pelajari 8 Modus Populer', desc: 'Pinjol ilegal, file APK kurir paket, undangan pernikahan palsu, phishing bank, dan lainnya.', badge: 'Selesai • 8 Modus Dibaca', icon: 'done_all', badgeIcon: 'menu_book', actionLabel: 'Buka Katalog Modus', actionIcon: 'menu_book', onAction: () => onModus(), connectorClass: 'bg-primary' }
-    : { id: 'modus', num: '2', state: pretestDone ? 'active' : 'upcoming', title: 'Pelajari 8 Modus Populer', desc: 'Pinjol ilegal, file APK kurir paket, undangan pernikahan palsu, phishing bank, dan lainnya.', badge: `${progres.modusDibaca} dari 8 modus dibaca`, icon: 'menu_book', badgeIcon: 'menu_book', actionLabel: 'Buka Katalog Modus', actionIcon: 'menu_book', onAction: () => onModus(), progressLabel: `${progres.modusDibaca} dari 8 modus dibaca`, progressWidth: (progres.modusDibaca / 8) * 100, connectorClass: 'border-dashed border-outline-variant' }
+    ? { id: 'modus', num: '2', state: 'done', title: 'Pelajari 8 Modus Populer', desc: 'Pinjol ilegal, file APK kurir paket, undangan pernikahan palsu, phishing bank, dan lainnya.', badge: 'Selesai • 8 Modus Dibaca', icon: 'done_all', badgeIcon: 'menu_book', actionLabel: 'Buka Katalog Modus', actionIcon: 'menu_book', onAction: () => onModulPopuler(), connectorClass: 'bg-primary' }
+    : { id: 'modus', num: '2', state: pretestDone ? 'active' : 'upcoming', title: 'Pelajari 8 Modus Populer', desc: 'Pinjol ilegal, file APK kurir paket, undangan pernikahan palsu, phishing bank, dan lainnya.', badge: `${progres.modusDibaca} dari 8 modus dibaca`, icon: 'menu_book', badgeIcon: 'menu_book', actionLabel: 'Buka Katalog Modus', actionIcon: 'menu_book', onAction: () => onModulPopuler(), progressLabel: `${progres.modusDibaca} dari 8 modus dibaca`, progressWidth: (progres.modusDibaca / 8) * 100, connectorClass: 'border-dashed border-outline-variant' }
 
   const step3 = skenarioDone
-    ? { id: 'simulasi', num: '3', state: 'done', title: 'Coba Simulasi Kasus Interaktif', desc: 'Hadapi percakapan manipulatif secara nyata di lingkungan aman tanpa risiko kerugian finansial.', badge: 'Selesai • 8 Skenario', icon: 'done_all', badgeIcon: 'bolt', actionLabel: 'Ulangi Simulasi', actionIcon: 'refresh', onAction: () => onSkenario(), connectorClass: 'bg-primary' }
-    : { id: 'simulasi', num: '3', state: modusDone ? 'active' : 'upcoming', title: 'Coba Simulasi Kasus Interaktif', desc: 'Hadapi percakapan manipulatif secara nyata di lingkungan aman tanpa risiko kerugian finansial.', badge: `${progres.skenario} dari 8 skenario selesai`, icon: 'chat', badgeIcon: 'bolt', actionLabel: 'Mulai Simulasi', actionIcon: 'arrow_forward', onAction: () => onSkenario(), progressLabel: `${progres.skenario} dari 8 skenario selesai`, progressWidth: (progres.skenario / 8) * 100, connectorClass: 'border-dashed border-outline-variant' }
+    ? { id: 'simulasi', num: '3', state: 'done', title: 'Coba Simulasi Kasus Interaktif', desc: 'Hadapi percakapan manipulatif secara nyata di lingkungan aman tanpa risiko kerugian finansial.', badge: 'Selesai • 1 Skenario', icon: 'done_all', badgeIcon: 'bolt', actionLabel: 'Ulangi Simulasi', actionIcon: 'refresh', onAction: () => onSimulasiKasus(), connectorClass: 'bg-primary' }
+    : { id: 'simulasi', num: '3', state: modusDone ? 'active' : 'upcoming', title: 'Coba Simulasi Kasus Interaktif', desc: 'Hadapi percakapan manipulatif secara nyata di lingkungan aman tanpa risiko kerugian finansial.', badge: '1 Skenario Acak', icon: 'chat', badgeIcon: 'bolt', actionLabel: 'Mulai Simulasi', actionIcon: 'arrow_forward', onAction: () => onSimulasiKasus(), connectorClass: 'border-dashed border-outline-variant' }
 
   const step4 = posttestDone
-    ? { id: 'posttest', num: '4', state: 'done', title: 'Post-test & Evaluasi Akhir', desc: 'Post-test selesai. Dapatkan sertifikat kompetensi jika skor ≥ 8.', badge: `Selesai • Skor: ${progres.posttest.skor}/10`, icon: 'workspace_premium', badgeIcon: 'done_all', actionLabel: 'Lihat Sertifikat', actionIcon: 'workspace_premium', onAction: () => notify('Sertifikat kompetensimu akan segera dibuka.'), connectorClass: 'bg-primary' }
-    : { id: 'posttest', num: '4', state: skenarioDone ? 'active' : 'locked', title: 'Post-test & Evaluasi Akhir', desc: 'Terbuka setelah menyelesaikan semua simulasi skenario. Dapatkan sertifikat kompetensi jika skor ≥ 8.', badge: skenarioDone ? 'Siap Dikerjakan' : 'Terkunci', icon: skenarioDone ? 'quiz' : 'lock', badgeIcon: skenarioDone ? 'bolt' : 'lock', actionLabel: 'Mulai Post-test', actionIcon: skenarioDone ? 'arrow_forward' : 'lock', onAction: () => onPosttest() }
+    ? { id: 'posttest', num: '4', state: 'done', title: 'Post-test & Evaluasi Akhir', desc: 'Post-test selesai. Dapatkan sertifikat kompetensi jika skor ≥ 8.', badge: `Selesai • Skor: ${progres.posttest.skor}/${progres.posttest.total ?? 10}`, icon: 'workspace_premium', badgeIcon: 'done_all', actionLabel: 'Lihat Sertifikat', actionIcon: 'workspace_premium', onAction: () => notify('Sertifikat kompetensimu akan segera dibuka.'), connectorClass: 'bg-primary' }
+    : { id: 'posttest', num: '4', state: skenarioDone ? 'active' : 'locked', title: 'Post-test & Evaluasi Akhir', desc: 'Terbuka setelah menyelesaikan simulasi skenario. Dapatkan sertifikat kompetensi jika skor ≥ 8.', badge: skenarioDone ? 'Siap Dikerjakan' : 'Terkunci', icon: skenarioDone ? 'quiz' : 'lock', badgeIcon: skenarioDone ? 'bolt' : 'lock', actionLabel: 'Mulai Post-test', actionIcon: skenarioDone ? 'arrow_forward' : 'lock', onAction: () => onPosttest() }
 
   return [step1, step2, step3, step4]
 }
@@ -80,7 +80,7 @@ function StepNode({ step }) {
   )
 }
 
-function StepCard({ step, onModul, onSimulasi, onNotice }) {
+function StepCard({ step, onModul, onModulPopuler, onSimulasi, onNotice }) {
   const isActive = step.state === 'active'
   const isLocked = step.state === 'locked'
   const isUpcoming = step.state === 'upcoming'
@@ -122,7 +122,7 @@ function StepCard({ step, onModul, onSimulasi, onNotice }) {
     if (step.id === 'modus') { onModul(); return }
     if (step.id === 'simulasi') { onSimulasi(); return }
     if (step.id === 'pretest') { onNotice('Halaman pre-test akan segera dibuka.'); return }
-    onNotice('Post-test terbuka setelah semua simulasi skenario selesai.')
+    onNotice('Post-test terbuka setelah simulasi selesai.')
   }
 
   return (
@@ -140,11 +140,13 @@ function StepCard({ step, onModul, onSimulasi, onNotice }) {
                 <span
                   className="font-label-sm text-label-sm text-primary font-bold uppercase tracking-wider">Langkah
                   {step.num} • Fokus Saat Ini</span>
-                <span
-                  className="inline-flex items-center gap-1 px-space-sm py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-bold">
-                  <span className="material-symbols-outlined text-[14px]">{step.badgeIcon}</span>
-                  {step.badge}
-                </span>
+                {step.badge && (
+                  <span
+                    className="inline-flex items-center gap-1 px-space-sm py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-bold">
+                    <span className="material-symbols-outlined text-[14px]">{step.badgeIcon}</span>
+                    {step.badge}
+                  </span>
+                )}
               </div>
               <h3 className="font-headline-sm text-headline-sm text-primary">{step.title}</h3>
               <p className="font-body-sm text-body-sm text-on-surface-variant">{step.desc}</p>
@@ -187,17 +189,13 @@ function StepCard({ step, onModul, onSimulasi, onNotice }) {
               <span
                 className="font-label-sm text-label-sm text-text-muted uppercase tracking-wider">Langkah
                 {step.num}</span>
-              <span
-                className={`inline-flex items-center gap-1 px-space-sm py-0.5 rounded-full font-label-sm text-label-sm font-semibold ${isLocked || isUpcoming
-                  ? 'bg-surface-container-high text-text-muted'
-                  : 'bg-safe-green-light text-tertiary'}`}>
-                <span className="material-symbols-outlined text-[14px]">{step.badgeIcon}</span>
-                {step.badge}
-              </span>
-              {step.id === 'pretest' && step.state !== 'done' && (
+              {step.badge && (
                 <span
-                  className="inline-flex px-space-xs py-0.5 rounded bg-surface-container text-text-muted font-label-sm text-label-sm">
-                  Boleh dilewati
+                  className={`inline-flex items-center gap-1 px-space-sm py-0.5 rounded-full font-label-sm text-label-sm font-semibold ${isLocked || isUpcoming
+                    ? 'bg-surface-container-high text-text-muted'
+                    : 'bg-safe-green-light text-tertiary'}`}>
+                  <span className="material-symbols-outlined text-[14px]">{step.badgeIcon}</span>
+                  {step.badge}
                 </span>
               )}
             </div>
@@ -249,13 +247,12 @@ export default function DashboardPeserta({
   peserta,
   progres = { pretest: null, modusDibaca: 0, skenario: 0, posttest: null },
   onSelesaiPretest = () => {},
-  onTambahModus = () => {},
-  onTambahSkenario = () => {},
   onSelesaiPosttest = () => {},
   onModul = () => {},
+  onModulPopuler = () => {},
+  onSimulasiKasus = () => {},
   onSimulasi = () => {},
   onHome = () => {},
-  onMulaiBaru = () => {},
 }) {
   const token = peserta?.token || 'TKP-8924-X'
   const nickname = peserta?.nickname?.trim() || 'Kawan Waspada'
@@ -271,7 +268,7 @@ export default function DashboardPeserta({
     window.setTimeout(() => setToast(''), 3500)
   }
 
-  const steps = getSteps(progres, onSelesaiPretest, onSelesaiPosttest, onTambahModus, onTambahSkenario, notify)
+  const steps = getSteps(progres, onSelesaiPretest, onSelesaiPosttest, onModulPopuler, onSimulasiKasus, notify)
   const totalLangkah = steps.filter((s) => s.state === 'done').length
   const persen = Math.round((totalLangkah / 4) * 100)
   const tahapAktif = steps.findIndex((s) => s.state === 'active') + 1
@@ -293,13 +290,6 @@ export default function DashboardPeserta({
     } catch {
       notify('Unduhan gagal. Catat manual: ' + token)
     }
-  }
-
-  const handleKeluar = () => {
-    const lanjut = window.confirm(
-      'Kamu akan keluar dari perangkat ini. Simpan kodemu dulu agar bisa masuk lagi. Lanjutkan?'
-    )
-    if (lanjut) onMulaiBaru()
   }
 
   return (
@@ -405,7 +395,6 @@ export default function DashboardPeserta({
                     <div className="w-3 h-3 rounded-full bg-primary-container"></div>
                     <h2 className="font-headline-md text-headline-md text-primary">4 Langkah Jalur Belajar</h2>
                   </div>
-                  <span className="font-label-sm text-label-sm text-text-muted">Jalur: Edukasi Bertahap</span>
                 </div>
                 <div className="flex flex-col gap-space-md">
                   {steps.map((step, i) => (
@@ -418,7 +407,7 @@ export default function DashboardPeserta({
                         </div>
                       )}
                       <StepNode step={step} />
-                      <StepCard step={step} onModul={onModul} onSimulasi={onSimulasi} onNotice={notify} />
+                      <StepCard step={step} onModul={onModul} onModulPopuler={onModulPopuler} onSimulasi={onSimulasi} onNotice={notify} />
                     </div>
                   ))}
                 </div>
@@ -437,7 +426,7 @@ export default function DashboardPeserta({
                   </div>
                   <button
                     className="font-label-md text-label-md text-primary hover:underline flex items-center gap-1"
-                    onClick={onModul} type="button">
+                    onClick={onModulPopuler} type="button">
                     <span>Semua Modus</span>
                     <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                   </button>
@@ -487,16 +476,10 @@ export default function DashboardPeserta({
                   </div>
                   <button
                     className="font-label-sm text-label-sm text-primary hover:underline font-semibold"
-                    onClick={onMulaiBaru} type="button">
-                    Ubah Profil
+                    onClick={onHome} type="button">
+                    Ubah
                   </button>
                 </div>
-                <button
-                  className="w-full h-10 px-space-sm bg-surface-container hover:bg-surface-container-high text-danger-red font-label-md text-label-md rounded-lg flex items-center justify-center gap-1 transition-colors"
-                  onClick={handleKeluar} type="button">
-                  <span className="material-symbols-outlined text-[18px]">logout</span>
-                  <span>Keluar</span>
-                </button>
                 {classCode && (
                   <div
                     className="flex items-center justify-between p-space-sm rounded-lg bg-surface-container-low">
@@ -511,10 +494,6 @@ export default function DashboardPeserta({
                     <span
                       className="font-label-sm text-label-sm text-text-muted uppercase tracking-wider font-semibold">KODE
                       AKSES PESERTA</span>
-                    <span
-                      className="inline-flex items-center gap-1 font-label-sm text-label-sm text-tertiary font-bold">
-                      <span className="material-symbols-outlined text-[14px]">lock</span> Unik
-                    </span>
                   </div>
                   <div
                     className="bg-surface-white px-space-md py-space-sm rounded-lg flex items-center justify-between shadow-sm">
@@ -540,8 +519,8 @@ export default function DashboardPeserta({
                     </button>
                   </div>
                   <p className="font-body-sm text-body-sm text-text-muted mt-space-xs">
-                    🔒 <strong>Privasi Penuh:</strong> Tanpa email &amp; nomor telepon. Simpan kode ini di catatan
-                    ponselmu agar skormu tetap tersambung kapan saja.
+                    <strong>Kode ini adalah kunci skormu.</strong> Simpan di catatan ponselmu supaya kamu bisa
+                    melanjutkan latihan kapan pun, bahkan saat ganti perangkat.
                   </p>
                 </div>
               </div>
@@ -569,29 +548,6 @@ export default function DashboardPeserta({
                     onClick={() => notify('Kanal pelaporan resmi akan segera dibuka.')} type="button">
                     <span>Buka Direktori Lapor Resmi</span>
                     <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                  </button>
-                </div>
-                <div
-                  className="bg-surface-white rounded-xl p-space-lg shadow-sm flex flex-col gap-space-sm hover:shadow-md transition-all">
-                  <div className="flex items-center gap-space-sm">
-                    <div
-                      className="w-10 h-10 rounded-xl bg-secondary-container text-on-secondary-fixed flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[22px]">picture_as_pdf</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span
-                        className="font-label-sm text-label-sm text-secondary font-bold uppercase">Bahan Edukasi</span>
-                      <h4 className="font-label-lg text-label-lg text-on-surface">Ringkasan Modus 1 Halaman</h4>
-                    </div>
-                  </div>
-                  <p className="font-body-sm text-body-sm text-text-muted">
-                    Cetak atau bagikan ke keluarga, grup WhatsApp RT/RW, komunitas, &amp; rekan kerja.
-                  </p>
-                  <button
-                    className="mt-space-xs text-secondary hover:text-on-secondary-fixed font-label-md text-label-md inline-flex items-center gap-1 transition-colors self-start"
-                    onClick={() => notify('Lembar edukasi akan segera tersedia untuk diunduh.')} type="button">
-                    <span>Unduh Lembar Edukasi (PDF &amp; JPG)</span>
-                    <span className="material-symbols-outlined text-[16px]">download</span>
                   </button>
                 </div>
               </div>

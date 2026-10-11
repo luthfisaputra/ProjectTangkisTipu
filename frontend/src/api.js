@@ -111,4 +111,21 @@ export function createParticipant(payload, options) {
   return request('POST', 'api/participants', { body: payload, ...options });
 }
 
+// Mulai/lanjutkan attempt tes. type: 'pretest' | 'posttest' | 'retensi'.
+// Respons backend: { attemptId, type, track, setId, setNama, questions } tanpa kunci.
+export function startTest(type, payload, options) {
+  return request('POST', `api/tests/${type}/start`, { body: payload, ...options });
+}
+
+// Kirim jawaban. payload: { attemptId, token, answers: [{ questionId, selectedOption }] }.
+// Respons backend: { attemptId, type, setId, score, total, passed, details }.
+export function submitTest(type, payload, options) {
+  return request('POST', `api/tests/${type}/submit`, { body: payload, ...options });
+}
+
+// Riwayat hasil tes. Respons backend: { token, attempts, summary }.
+export function getTestResults(token, options) {
+  return request('GET', `api/tests/${encodeURIComponent(token)}/results`, options);
+}
+
 export default api;

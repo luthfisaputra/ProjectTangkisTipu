@@ -1,0 +1,466 @@
+import { useEffect, useRef, useState } from 'react'
+import { startTest, submitTest, ApiError } from '../api.js'
+
+const HURUF = ['A', 'B', 'C', 'D']
+const LABEL_SET = { 0: 'Anak & Remaja', 1: 'Dewasa', 2: 'Lansia' }
+const AMBANG_LULUS = 8
+
+export default function Posttest({ token = '', track = 1, onSelesai = () => {}, onKeluar = () => {} }) {
+  const trackIdx = Number(track) >= 0 && Number(track) <= 2 ? Number(track) : 1
+
+  const [attemptId, setAttemptId] = useState(null)
+  const [soalList, setSoalList] = useState([])
+  const [setNama, setSetNama] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  const [idx, setIdx] = useState(0)
+  const [jawaban, setJawaban] = useState([])
+  const [showExit, setShowExit] = useState(false)
+  const [showSubmit, setShowSubmit] = useState(false)
+
+  const submittingRef = useRef(false)
+
+  useEffect(() => {
+    let aktif = true
+    const controller = new AbortController()
+
+    const mulai = async () => {
+      if (!token) {
+        setLoading(false)
+        setLoadError('Kode peserta tidak ditemukan. Silakan daftar ulang terlebih dahulu.')
+        return
+      }
+      setLoading(true)
+      setLoadError('')
+      try {
+        const res = await startTest('posttest', { token }, { signal: controller.signal })
+        if (!aktif) return
+        const soal = Array.isArray(res?.questions) ? res.questions : []
+        if (!res?.attemptId || soal.length === 0) {
+          throw new ApiError('Soal post-test belum tersedia untuk jalur ini.', {
+            status: 0,
+            code: 'QUESTIONS_NOT_AVAILABLE',
+          })
+        }
+        setAttemptId(res.attemptId)
+        setSoalList(soal)
+        setSetNama(res.setNama || '')
+        setJawaban(soal.map(() => null))
+        setIdx(0)
+      } catch (err) {
+        if (err && err.name === 'AbortError') return
+        if (!aktif) return
+        setLoadError(
+          err instanceof ApiError
+            ? err.message
+            : 'Gagal memuat soal post-test. Periksa koneksi lalu coba lagi.'
+        )
+      } finally {
+        if (aktif) setLoading(false)
+      }
+    }
+
+    mulai()
+    return () => {
+      aktif = false
+      controller.abort()
+    }
+  }, [token])
+
+  const TOTAL = soalList.length
+  const soal = soalList[idx]
+  const terjawab = jawaban.filter((a) => a !== null).length
+  const belum = TOTAL - terjawab
+  const persen = TOTAL > 0 ? Math.round((terjawab / TOTAL) * 100) : 0
+
+  const pilih = (i) => {
+    setJawaban((prev) => {
+      const next = [...prev]
+      next[idx] = i
+      return next
+    })
+  }
+
+  const kirim = async () => {
+    if (submittingRef.current) return
+    if (!attemptId) return
+    submittingRef.current = true
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const answers = soalList
+        .map((s, i) => ({ questionId: s.id, selectedOption: jawaban[i] }))
+        .filter((a) => a.selectedOption !== null && a.selectedOption !== undefined)
+        .map((a) => ({ questionId: a.questionId, selectedOption: a.selectedOption }))
+
+      if (answers.length === 0) {
+        setSubmitError('Isi minimal satu jawaban sebelum menyelesaikan tes.')
+        setShowSubmit(false)
+        return
+      }
+
+      const res = await submitTest('posttest', { attemptId, token, answers })
+      setShowSubmit(false)
+      onSelesai(res?.score ?? 0, res)
+    } catch (err) {
+      setShowSubmit(false)
+      setSubmitError(
+        err instanceof ApiError
+          ? err.message
+          : 'Gagal mengirim jawaban. Periksa koneksi lalu coba lagi.'
+      )
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
+  }
+
+  const mintaSubmit = () => {
+    if (belum > 0) setShowSubmit(true)
+    else kirim()
+  }
+
+  if (loading) {
+    return (
+      <main className="w-full min-h-screen bg-surface flex items-center justify-center">
+        <div className="flex flex-col items-center gap-space-md text-center px-margin">
+          <span className="material-symbols-outlined text-[40px] text-primary animate-spin" aria-hidden="true">progress_activity</span>
+          <p className="font-body-md text-body-md text-text-muted">Memuat soal post-test…</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (loadError || !soal) {
+    return (
+      <main className="w-full min-h-screen bg-surface flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto px-margin">
+          <div className="bg-surface-white rounded-xl shadow-sm p-space-lg flex flex-col gap-space-md text-center items-center">
+            <div className="w-12 h-12 rounded-xl bg-error-container text-error flex items-center justify-center">
+              <span className="material-symbols-outlined text-[28px]" aria-hidden="true">error</span>
+            </div>
+            <p className="font-body-md text-body-md text-on-surface">{loadError || 'Soal post-test belum tersedia.'}</p>
+            <button
+              className="inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-low text-primary font-label-md text-label-md hover:bg-surface-container transition-colors"
+              onClick={onKeluar} type="button">
+              Kembali ke Dashboard
+            </button>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <main className="w-full min-h-screen bg-surface">
+      <div className="flex flex-col w-full">
+        <div
+          className="w-full max-w-[1360px] mx-auto px-margin md:px-margin-tablet lg:px-margin-desktop py-space-lg space-y-space-lg">
+          {/* Top Utility & Header Bar */}
+          <div
+            className="w-full bg-surface-white rounded-xl shadow-sm p-space-md lg:p-space-lg flex flex-col md:flex-row md:items-center md:justify-between gap-space-md">
+            <div className="flex items-center gap-space-md">
+              <button
+                className="inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-surface-container-low text-on-surface-variant hover:text-error hover:bg-error-container/40 transition-colors gap-space-xs font-label-md text-label-md"
+                onClick={() => setShowExit(true)} type="button">
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_back</span>
+                <span>Keluar Tes</span>
+              </button>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-space-xs flex-wrap">
+                  <h1 className="font-headline-sm text-headline-sm text-primary">Post-test & Evaluasi Akhir</h1>
+                </div>
+                <span className="font-body-sm text-body-sm text-text-muted">
+                  Kode Sesi: {token || 'TT-POST-9021'} • Set {trackIdx + 1}: {LABEL_SET[trackIdx]}
+                  {setNama ? ` • ${setNama}` : ''}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col md:items-end gap-space-xs min-w-[260px]">
+              <div className="flex items-center justify-between w-full">
+                <span className="font-label-md text-label-md text-primary font-bold">Soal {idx + 1} dari {TOTAL}</span>
+                <span className="font-label-sm text-label-sm text-text-muted">{persen}% Selesai</span>
+              </div>
+              <div className="w-full h-2.5 rounded-full bg-surface-container overflow-hidden">
+                <div className="h-full bg-primary-container rounded-full transition-all duration-300"
+                  style={{ width: `${persen}%` }}></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+            <div className="lg:col-span-8 flex flex-col gap-space-lg">
+              <div
+                className="bg-surface-white rounded-xl shadow-sm p-space-lg lg:p-space-xl flex flex-col gap-space-lg relative overflow-hidden">
+                <div className="flex items-center justify-between gap-space-sm flex-wrap">
+                  <div
+                    className="inline-flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container-low text-primary font-label-sm text-label-sm">
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">quiz</span>
+                    <span>Kategori: {soal.kategori}</span>
+                  </div>
+                  <div className="flex items-center gap-space-xs text-text-muted font-body-sm text-body-sm">
+                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">verified</span>
+                    <span>Pilihan Tunggal (Pilih 1 tindakan)</span>
+                  </div>
+                </div>
+
+                <div className="space-y-space-sm">
+                  <span className="font-label-sm text-label-sm uppercase tracking-wider text-text-muted">
+                    Kasus Situasional Soal {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <p className="font-headline-sm text-headline-sm text-on-surface leading-relaxed">
+                    {soal.pertanyaan}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-space-xs text-text-muted font-body-sm text-body-sm">
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">info</span>
+                  <span>Kunci jawaban dan evaluasi lengkap akan disajikan di Laporan Analisis Akhir setelah tes
+                    diselesaikan.</span>
+                </div>
+
+                <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-space-md pt-space-xs">
+                  <legend className="sr-only">{soal.pertanyaan}</legend>
+                  {(soal.opsi || []).map((teks, i) => {
+                    const dipilih = jawaban[idx] === i
+                    return (
+                      <label
+                        key={i}
+                        className={`relative flex flex-col justify-between p-space-md min-h-[148px] rounded-xl cursor-pointer transition-all ${dipilih
+                          ? 'bg-primary-fixed/20 shadow-md'
+                          : 'bg-surface-white hover:bg-surface-container-low shadow-sm'}`}>
+                        <input
+                          className="sr-only"
+                          type="radio"
+                          name={`soal-${idx}`}
+                          checked={dipilih}
+                          onChange={() => pilih(i)} />
+                        <div className="flex items-start gap-space-sm">
+                          <span
+                            className={`w-8 h-8 rounded-lg font-label-md text-label-md flex items-center justify-center shrink-0 ${dipilih
+                              ? 'bg-primary-container text-on-primary shadow-sm'
+                              : 'bg-surface-container-high text-on-surface'}`}>
+                            {HURUF[i]}
+                          </span>
+                          <p className={`font-body-md text-body-md leading-relaxed ${dipilih
+                            ? 'text-primary font-semibold'
+                            : 'text-on-surface'}`}>
+                            {teks}
+                          </p>
+                        </div>
+                        <div className={`mt-space-sm flex items-center ${dipilih ? 'justify-between' : 'justify-end'}`}>
+                          {dipilih && (
+                            <span
+                              className="font-label-sm text-label-sm text-primary flex items-center gap-1 font-bold">
+                              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">check_circle</span>
+                              Jawaban Anda Tersimpan
+                            </span>
+                          )}
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center ${dipilih
+                              ? 'bg-primary-container text-on-primary shadow-sm'
+                              : 'bg-surface-container text-transparent'}`}>
+                            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
+                          </div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </fieldset>
+
+                <div className="pt-space-md flex flex-col sm:flex-row items-center justify-between gap-space-md">
+                  <button
+                    className={`w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-lg rounded-xl font-label-lg text-label-lg transition-colors gap-space-xs ${idx === 0
+                      ? 'bg-surface-container-low text-text-muted cursor-not-allowed'
+                      : 'bg-surface-container-low text-primary hover:bg-surface-container'}`}
+                    onClick={() => setIdx((i) => Math.max(0, i - 1))} type="button" disabled={idx === 0}>
+                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_back</span>
+                    <span>Sebelumnya</span>
+                  </button>
+                  <div className="flex items-center gap-space-sm w-full sm:w-auto">
+                    <button
+                      className={`w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-xl rounded-xl font-label-lg text-label-lg shadow-sm transition-all gap-space-xs ${idx === TOTAL - 1
+                        ? 'bg-surface-container-high text-text-muted cursor-not-allowed'
+                        : 'bg-primary text-on-primary hover:bg-primary-container'}`}
+                      onClick={() => setIdx((i) => Math.min(TOTAL - 1, i + 1))} type="button"
+                      disabled={idx === TOTAL - 1}>
+                      <span>{idx === TOTAL - 1 ? 'Soal Terakhir' : `Lanjut ke Soal ${idx + 2}`}</span>
+                      <span className="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_forward</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-4 flex flex-col gap-space-lg">
+              <div className="bg-surface-white rounded-xl shadow-sm p-space-lg flex flex-col gap-space-lg">
+                <div className="flex items-center justify-between pb-space-xs">
+                  <div>
+                    <h2 className="font-label-lg text-label-lg text-primary font-bold">Navigasi Soal</h2>
+                    <span className="font-label-sm text-label-sm text-text-muted">Total {TOTAL} Butir Kasus</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-5 gap-space-sm justify-items-center">
+                  {soalList.map((s, i) => {
+                    const dijawab = jawaban[i] !== null
+                    const aktif = i === idx
+                    return (
+                      <button
+                        key={s.id}
+                        aria-label={`Soal ${i + 1} ${dijawab ? 'Terjawab' : aktif ? 'Sedang Dikerjakan' : 'Belum Dikerjakan'}`}
+                        aria-current={aktif ? 'true' : undefined}
+                        onClick={() => setIdx(i)} type="button"
+                        className={`w-11 h-11 rounded-xl font-label-md text-label-md flex items-center justify-center relative transition-colors ${aktif
+                          ? 'bg-surface-white text-primary shadow-md bg-gradient-to-b from-primary-fixed/20 to-surface-white font-extrabold'
+                          : dijawab
+                            ? 'bg-primary text-on-primary shadow-sm hover:opacity-90'
+                            : 'bg-surface-container-low text-text-muted hover:text-on-surface hover:bg-surface-container'}`}>
+                        {i + 1}
+                        {dijawab && !aktif && (
+                          <span
+                            className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center text-[9px] font-bold"
+                            aria-hidden="true">✓</span>
+                        )}
+                        {aktif && (
+                          <span className="absolute -top-1 -right-1 flex h-3 w-3" aria-hidden="true">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div
+                  className="pt-space-sm flex flex-col gap-space-xs font-body-sm text-body-sm bg-surface-card-subtle p-space-md rounded-xl">
+                  <span className="font-label-sm text-label-sm text-on-surface font-semibold mb-1">Status
+                    Pengerjaan:</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded bg-primary" aria-hidden="true"></span>
+                      <span className="text-on-surface-variant">Terjawab</span>
+                    </div>
+                    <span className="font-label-sm text-label-sm text-primary font-bold">{terjawab}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded bg-surface-container-low" aria-hidden="true"></span>
+                      <span className="text-on-surface-variant">Belum Dijawab</span>
+                    </div>
+                    <span className="font-label-sm text-label-sm text-text-muted font-bold">{belum}</span>
+                  </div>
+                </div>
+
+                <div className="pt-space-xs">
+                  {submitError && (
+                    <div className="mb-space-sm flex items-start gap-space-xs p-space-sm rounded-xl bg-warning-yellow-light text-secondary">
+                      <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5" aria-hidden="true">error</span>
+                      <span className="font-body-sm text-body-sm leading-snug">{submitError}</span>
+                    </div>
+                  )}
+                  <button
+                    className="w-full inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-secondary hover:text-on-secondary font-label-lg text-label-lg transition-all gap-space-xs shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    onClick={mintaSubmit} type="button" disabled={submitting}>
+                    <span className={`material-symbols-outlined text-[20px] ${submitting ? 'animate-spin' : ''}`} aria-hidden="true">
+                      {submitting ? 'progress_activity' : 'assignment_turned_in'}
+                    </span>
+                    <span>{submitting ? 'Mengirim Jawaban…' : 'Selesaikan Post-test'}</span>
+                  </button>
+                  <p className="font-label-sm text-[12px] text-center text-text-muted mt-2">
+                    {belum > 0
+                      ? `Kamu masih memiliki ${belum} soal yang belum diisi.`
+                      : 'Semua soal sudah terjawab. Tekan untuk mengirim jawabanmu.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-surface-cream rounded-xl p-space-lg flex flex-col gap-space-sm shadow-sm">
+                <div className="flex items-center gap-space-xs text-secondary font-label-md text-label-md">
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">policy</span>
+                  <span>Aturan Evaluasi Post-test</span>
+                </div>
+                <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+                  Post-test mengukur ketahanan Anda setelah mempelajari modul dan simulasi. Skor minimal kelulusan
+                  adalah {AMBANG_LULUS} dari 10 untuk penerbitan sertifikat digital.
+                </p>
+                <div
+                  className="p-space-sm rounded-lg bg-surface-white font-body-sm text-body-sm text-text-muted flex items-start gap-2">
+                  <span className="material-symbols-outlined text-primary text-[18px] shrink-0" aria-hidden="true">lock</span>
+                  <span>Catatan: Post-test hanya dapat dikerjakan <strong className="text-on-surface">1 kali per set
+                      soal</strong>.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {showExit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-space-md bg-on-surface/50 backdrop-blur-sm fade-in"
+            role="dialog" aria-modal="true" aria-labelledby="judul-keluar-post">
+            <div className="bg-surface-white rounded-xl shadow-xl max-w-md w-full p-space-lg flex flex-col gap-space-md pop-in">
+              <div className="w-12 h-12 rounded-xl bg-error-container text-error flex items-center justify-center">
+                <span className="material-symbols-outlined text-[28px]" aria-hidden="true">warning</span>
+              </div>
+              <div className="space-y-space-xs">
+                <h3 id="judul-keluar-post" className="font-headline-sm text-headline-sm text-on-surface">
+                  Yakin ingin keluar dari Post-test?</h3>
+                <p className="font-body-sm text-body-sm text-text-muted">
+                  Post-test hanya dapat dikerjakan satu kali per set. Anda dapat melanjutkan attempt yang belum
+                  selesai dari dashboard kapan saja.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-space-sm pt-space-sm">
+                <button
+                  className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors"
+                  onClick={() => setShowExit(false)} type="button">
+                  Batal & Lanjutkan Tes
+                </button>
+                <button
+                  className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-error text-on-error font-label-md text-label-md hover:opacity-90 transition-opacity"
+                  onClick={onKeluar} type="button">
+                  Keluar ke Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSubmit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-space-md bg-on-surface/50 backdrop-blur-sm fade-in"
+            role="dialog" aria-modal="true" aria-labelledby="judul-kirim-post">
+            <div className="bg-surface-white rounded-xl shadow-xl max-w-md w-full p-space-lg flex flex-col gap-space-md pop-in">
+              <div className="w-12 h-12 rounded-xl bg-warning-yellow-light text-secondary flex items-center justify-center">
+                <span className="material-symbols-outlined text-[28px]" aria-hidden="true">help</span>
+              </div>
+              <div className="space-y-space-xs">
+                <h3 id="judul-kirim-post" className="font-headline-sm text-headline-sm text-on-surface">
+                  Akhiri sesi Post-test sekarang?</h3>
+                <p className="font-body-sm text-body-sm text-text-muted">
+                  Terdapat {belum} butir soal yang belum dijawab. Jawaban yang sudah dipilih tetap akan dinilai.
+                  Post-test hanya dapat dikerjakan satu kali.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-space-sm pt-space-sm">
+                <button
+                  className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors"
+                  onClick={() => setShowSubmit(false)} type="button">
+                  Batal & Lanjutkan Tes
+                </button>
+                <button
+                  className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  onClick={kirim} type="button" disabled={submitting}>
+                  {submitting ? 'Mengirim…' : 'Selesaikan Post-test'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  )
+}

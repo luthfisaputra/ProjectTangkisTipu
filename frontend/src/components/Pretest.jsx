@@ -1,42 +1,72 @@
-import { useEffect, useState } from 'react'
-import { startTest, submitTest } from '../api.js'
+import { useEffect, useRef, useState } from 'react'
+import { startTest, submitTest, ApiError } from '../api.js'
 
 const HURUF = ['A', 'B', 'C', 'D']
+const LABEL_SET = { 0: 'Anak & Remaja', 1: 'Dewasa', 2: 'Lansia' }
 
 export default function Pretest({ token = '', track = 1, onSelesai = () => {}, onKeluar = () => {} }) {
   const trackIdx = Number(track) >= 0 && Number(track) <= 2 ? Number(track) : 1
 
   const [attemptId, setAttemptId] = useState(null)
   const [soalList, setSoalList] = useState([])
-  const [memuat, setMemuat] = useState(true)
-  const [error, setError] = useState('')
-  const [mengirim, setMengirim] = useState(false)
+  const [setNama, setSetNama] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const [idx, setIdx] = useState(0)
   const [jawaban, setJawaban] = useState([])
   const [showExit, setShowExit] = useState(false)
   const [showSubmit, setShowSubmit] = useState(false)
 
+  const submittingRef = useRef(false)
+
+  // Mulai/lanjutkan attempt pre-test dari backend.
   useEffect(() => {
     let aktif = true
-    setMemuat(true)
-    setError('')
-    startTest('pretest', token)
-      .then((data) => {
+    const controller = new AbortController()
+
+    const mulai = async () => {
+      if (!token) {
+        setLoading(false)
+        setLoadError('Kode peserta tidak ditemukan. Silakan daftar ulang terlebih dahulu.')
+        return
+      }
+      setLoading(true)
+      setLoadError('')
+      try {
+        const res = await startTest('pretest', { token }, { signal: controller.signal })
         if (!aktif) return
-        setAttemptId(data.attemptId)
-        setSoalList(data.questions || [])
-        setJawaban((data.questions || []).map(() => null))
-      })
-      .catch((err) => {
+        const soal = Array.isArray(res?.questions) ? res.questions : []
+        if (!res?.attemptId || soal.length === 0) {
+          throw new ApiError('Soal pre-test belum tersedia untuk jalur ini.', {
+            status: 0,
+            code: 'QUESTIONS_NOT_AVAILABLE',
+          })
+        }
+        setAttemptId(res.attemptId)
+        setSoalList(soal)
+        setSetNama(res.setNama || '')
+        setJawaban(soal.map(() => null))
+        setIdx(0)
+      } catch (err) {
+        if (err && err.name === 'AbortError') return
         if (!aktif) return
-        setError(err.message || 'Gagal memuat soal pre-test. Silakan coba lagi.')
-      })
-      .finally(() => {
-        if (aktif) setMemuat(false)
-      })
+        setLoadError(
+          err instanceof ApiError
+            ? err.message
+            : 'Gagal memuat soal pre-test. Periksa koneksi lalu coba lagi.'
+        )
+      } finally {
+        if (aktif) setLoading(false)
+      }
+    }
+
+    mulai()
     return () => {
       aktif = false
+      controller.abort()
     }
   }, [token])
 
@@ -44,7 +74,7 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
   const soal = soalList[idx]
   const terjawab = jawaban.filter((a) => a !== null).length
   const belum = TOTAL - terjawab
-  const persen = TOTAL > 0 ? Math.round(((idx + 1) / TOTAL) * 100) : 0
+  const persen = TOTAL > 0 ? Math.round((terjawab / TOTAL) * 100) : 0
   const lansia = trackIdx === 2
 
   const pilih = (i) => {
@@ -55,51 +85,72 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
     })
   }
 
-  const konfirmasiSubmit = async () => {
-    setShowSubmit(false)
-    setMengirim(true)
-    setError('')
+  const kirim = async () => {
+    if (submittingRef.current) return
+    if (!attemptId) return
+    submittingRef.current = true
+    setSubmitting(true)
+    setSubmitError('')
     try {
-      const answers = soalList.map((s, i) => ({
-        questionId: String(s.id),
-        selectedOption: jawaban[i] ?? 0,
-      }))
-      const hasil = await submitTest('pretest', { attemptId, answers })
-      onSelesai(hasil.score)
+      // Hanya kirim soal yang dijawab; soal kosong dibiarkan agar backend menyimpan NULL.
+      const answers = soalList
+        .map((s, i) => ({ questionId: s.id, selectedOption: jawaban[i] }))
+        .filter((a) => a.selectedOption !== null && a.selectedOption !== undefined)
+        .map((a) => ({ questionId: a.questionId, selectedOption: a.selectedOption }))
+
+      if (answers.length === 0) {
+        setSubmitError('Isi minimal satu jawaban sebelum menyelesaikan tes.')
+        setShowSubmit(false)
+        return
+      }
+
+      const res = await submitTest('pretest', { attemptId, token, answers })
+      setShowSubmit(false)
+      onSelesai(res?.score ?? 0, res)
     } catch (err) {
-      setError(err.message || 'Gagal mengirim jawaban. Silakan coba lagi.')
+      setShowSubmit(false)
+      setSubmitError(
+        err instanceof ApiError
+          ? err.message
+          : 'Gagal mengirim jawaban. Periksa koneksi lalu coba lagi.'
+      )
     } finally {
-      setMengirim(false)
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
   const mintaSubmit = () => {
     if (belum > 0) setShowSubmit(true)
-    else konfirmasiSubmit()
+    else kirim()
   }
 
-  if (memuat) {
+  if (loading) {
     return (
       <main className="w-full min-h-screen bg-surface flex items-center justify-center">
-        <div className="flex flex-col items-center gap-space-md text-text-muted">
-          <span className="material-symbols-outlined text-[40px] animate-spin" aria-hidden="true">progress_activity</span>
-          <span className="font-body-md text-body-md">Memuat soal pre-test…</span>
+        <div className="flex flex-col items-center gap-space-md text-center px-margin">
+          <span className="material-symbols-outlined text-[40px] text-primary animate-spin" aria-hidden="true">progress_activity</span>
+          <p className="font-body-md text-body-md text-text-muted">Memuat soal pre-test…</p>
         </div>
       </main>
     )
   }
 
-  if (error && TOTAL === 0) {
+  if (loadError || !soal) {
     return (
       <main className="w-full min-h-screen bg-surface flex items-center justify-center">
-        <div className="bg-surface-white rounded-xl shadow-sm p-space-lg max-w-md w-full flex flex-col gap-space-md text-center">
-          <span className="material-symbols-outlined text-[40px] text-error mx-auto" aria-hidden="true">error</span>
-          <p className="font-body-md text-body-md text-on-surface">{error}</p>
-          <button
-            className="inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors"
-            onClick={onKeluar} type="button">
-            Kembali ke Beranda
-          </button>
+        <div className="max-w-md w-full mx-auto px-margin">
+          <div className="bg-surface-white rounded-xl shadow-sm p-space-lg flex flex-col gap-space-md text-center items-center">
+            <div className="w-12 h-12 rounded-xl bg-error-container text-error flex items-center justify-center">
+              <span className="material-symbols-outlined text-[28px]" aria-hidden="true">error</span>
+            </div>
+            <p className="font-body-md text-body-md text-on-surface">{loadError || 'Soal pre-test belum tersedia.'}</p>
+            <button
+              className="inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-low text-primary font-label-md text-label-md hover:bg-surface-container transition-colors"
+              onClick={onKeluar} type="button">
+              Kembali ke Beranda
+            </button>
+          </div>
         </div>
       </main>
     )
@@ -123,14 +174,10 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
               <div className="flex flex-col">
                 <div className="flex items-center gap-space-xs flex-wrap">
                   <h1 className="font-headline-sm text-headline-sm text-primary">Pre-test Kemampuan Awal</h1>
-                  <span
-                    className="inline-flex items-center gap-1 px-space-xs py-0.5 rounded-full bg-secondary-fixed/50 text-on-secondary-fixed-variant font-label-sm text-label-sm">
-                    <span className="material-symbols-outlined text-[14px]" aria-hidden="true">flag</span>
-                    Boleh dilewati
-                  </span>
                 </div>
                 <span className="font-body-sm text-body-sm text-text-muted">
-                  Kode Sesi: {token || 'TT-PRE-9021'} • Set {trackIdx + 1}
+                  Kode Sesi: {token || 'TT-PRE-9021'} • Set {trackIdx + 1}: {LABEL_SET[trackIdx]}
+                  {setNama ? ` • ${setNama}` : ''}
                 </span>
               </div>
             </div>
@@ -146,14 +193,6 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
               </div>
             </div>
           </div>
-
-          {error && (
-            <div
-              className="w-full bg-error-container/40 text-error rounded-xl p-space-md font-body-sm text-body-sm flex items-center gap-space-xs">
-              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">error</span>
-              <span>{error}</span>
-            </div>
-          )}
 
           {/* Main Content: Two Columns Workspace */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
@@ -194,7 +233,7 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                 {/* Answer Options: 2x2 Grid */}
                 <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-space-md pt-space-xs">
                   <legend className="sr-only">{soal.pertanyaan}</legend>
-                  {soal.opsi.map((teks, i) => {
+                  {(soal.opsi || []).map((teks, i) => {
                     const dipilih = jawaban[idx] === i
                     return (
                       <label
@@ -275,11 +314,6 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                     <h2 className="font-label-lg text-label-lg text-primary font-bold">Navigasi Soal</h2>
                     <span className="font-label-sm text-label-sm text-text-muted">Total {TOTAL} Butir Kasus</span>
                   </div>
-                  <span
-                    className="inline-flex items-center gap-1 font-label-sm text-label-sm text-primary bg-surface-container-low px-space-sm py-1 rounded-full">
-                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">alarm</span>
-                    Fleksibel
-                  </span>
                 </div>
 
                 {/* Question Grid 44x44px */}
@@ -325,31 +359,39 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                       <span className="w-3.5 h-3.5 rounded bg-primary" aria-hidden="true"></span>
                       <span className="text-on-surface-variant">Terjawab</span>
                     </div>
-                    <span className="font-label-sm text-label-sm text-primary font-bold">{terjawab} Butir</span>
+                    <span className="font-label-sm text-label-sm text-primary font-bold">{terjawab}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 rounded bg-surface-white shadow-sm" aria-hidden="true"></span>
                       <span className="text-on-surface-variant">Sedang Aktif</span>
                     </div>
-                    <span className="font-label-sm text-label-sm text-secondary font-bold">1 Butir</span>
+                    <span className="font-label-sm text-label-sm text-secondary font-bold">1</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 rounded bg-surface-container-low" aria-hidden="true"></span>
                       <span className="text-on-surface-variant">Belum Dijawab</span>
                     </div>
-                    <span className="font-label-sm text-label-sm text-text-muted font-bold">{belum} Butir</span>
+                    <span className="font-label-sm text-label-sm text-text-muted font-bold">{belum}</span>
                   </div>
                 </div>
 
                 {/* Final Submit Button */}
                 <div className="pt-space-xs">
+                  {submitError && (
+                    <div className="mb-space-sm flex items-start gap-space-xs p-space-sm rounded-xl bg-warning-yellow-light text-secondary">
+                      <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5" aria-hidden="true">error</span>
+                      <span className="font-body-sm text-body-sm leading-snug">{submitError}</span>
+                    </div>
+                  )}
                   <button
-                    className="w-full inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-secondary hover:text-on-secondary font-label-lg text-label-lg transition-all gap-space-xs shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                    onClick={mintaSubmit} type="button" disabled={mengirim}>
-                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">assignment_turned_in</span>
-                    <span>{mengirim ? 'Mengirim jawaban…' : 'Selesaikan Tes Sekarang'}</span>
+                    className="w-full inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-secondary hover:text-on-secondary font-label-lg text-label-lg transition-all gap-space-xs shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    onClick={mintaSubmit} type="button" disabled={submitting}>
+                    <span className={`material-symbols-outlined text-[20px] ${submitting ? 'animate-spin' : ''}`} aria-hidden="true">
+                      {submitting ? 'progress_activity' : 'assignment_turned_in'}
+                    </span>
+                    <span>{submitting ? 'Mengirim Jawaban…' : 'Selesaikan Tes Sekarang'}</span>
                   </button>
                   <p className="font-label-sm text-[12px] text-center text-text-muted mt-2">
                     {belum > 0
@@ -435,9 +477,9 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                   Batal & Lanjutkan Tes
                 </button>
                 <button
-                  className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors"
-                  onClick={konfirmasiSubmit} type="button">
-                  Selesaikan Tes
+                  className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  onClick={kirim} type="button" disabled={submitting}>
+                  {submitting ? 'Mengirim…' : 'Selesaikan Tes'}
                 </button>
               </div>
             </div>

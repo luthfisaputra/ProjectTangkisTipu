@@ -15,6 +15,7 @@ import UjiSkorTes from './components/UjiSkorTes.jsx'
 import SimpanKode from './components/SimpanKode.jsx'
 import DashboardPeserta from './components/DashboardPeserta.jsx'
 import Pretest from './components/Pretest.jsx'
+import Posttest from './components/Posttest.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import DashboardAdmin from './components/DashboardAdmin.jsx'
 import KodeKelasAdmin from './components/KodeKelasAdmin.jsx'
@@ -77,7 +78,9 @@ export default function App() {
   const [bankSoal, setBankSoal] = useState(() => SET_SOAL.reduce((acc, s) => ({ ...acc, [s.id]: DAFTAR_SOAL }), {}))
   const [progres, setProgres] = useState({ pretest: null, modusIds: [], skenario: 0, posttest: null })
 
-  const selesaikanPretest = (skor) => setProgres((p) => ({ ...p, pretest: { skor } }))
+  // Skor selalu berasal dari respons backend (submit), bukan dihitung di frontend.
+  const selesaikanPretest = (skor, hasil) =>
+    setProgres((p) => ({ ...p, pretest: { skor, total: hasil?.total ?? 10, passed: hasil?.passed ?? null } }))
 
   const tandaiModusDibaca = (id) => {
     setProgres((p) => {
@@ -87,7 +90,8 @@ export default function App() {
   }
 
   const tandaiSkenarioSelesai = () => setProgres((p) => ({ ...p, skenario: Math.min(p.skenario + 1, 8) }))
-  const selesaikanPosttest = () => setProgres((p) => ({ ...p, posttest: { skor: 8 } }))
+  const selesaikanPosttest = (skor, hasil) =>
+    setProgres((p) => ({ ...p, posttest: { skor, total: hasil?.total ?? 10, passed: hasil?.passed ?? null } }))
 
   // Simpan identitas peserta (termasuk token dari backend) agar bisa dipulihkan.
   useEffect(() => {
@@ -130,6 +134,7 @@ export default function App() {
         'uji-skor-tes',
         'dashboard',
         'pretest',
+        'posttest',
         'kanal-lapor',
         'login',
         'admin',
@@ -178,7 +183,7 @@ export default function App() {
 
   // Navbar & Footer disembunyikan di halaman full-bleed (pre-test, login, admin).
   // Footer juga disembunyikan di tampilan simulasi chat per modul.
-  const chromeVisible = !['pretest', 'login', 'admin', 'set-soal', 'kode-kelas'].includes(page)
+  const chromeVisible = !['pretest', 'posttest', 'login', 'admin', 'set-soal', 'kode-kelas'].includes(page)
 
   return (
     <>
@@ -223,18 +228,28 @@ export default function App() {
           <Pretest
             token={peserta?.token}
             track={peserta?.track}
-            onSelesai={(skor) => {
-              selesaikanPretest(skor)
+            onSelesai={(skor, hasil) => {
+              selesaikanPretest(skor, hasil)
               navigate('dashboard')
             }}
             onKeluar={() => navigate('beranda')}
+          />
+        ) : page === 'posttest' ? (
+          <Posttest
+            token={peserta?.token}
+            track={peserta?.track}
+            onSelesai={(skor, hasil) => {
+              selesaikanPosttest(skor, hasil)
+              navigate('dashboard')
+            }}
+            onKeluar={() => navigate('dashboard')}
           />
         ) : page === 'dashboard' ? (
           <DashboardPeserta
             peserta={peserta}
             progres={{ ...progres, modusDibaca: progres.modusIds.length }}
             onSelesaiPretest={() => navigate('pretest')}
-            onSelesaiPosttest={selesaikanPosttest}
+            onSelesaiPosttest={() => navigate('posttest')}
             onModul={() => navigate('belajar-modus')}
             onModulPopuler={() => navigate('belajar-modus-populer')}
             onSimulasiKasus={() => navigate('simulasi-kasus')}
