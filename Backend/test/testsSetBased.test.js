@@ -41,6 +41,31 @@ test('statusJadwal: dalam rentang = "aktif"', () => {
   assert.equal(statusJadwal(setAktif(), NOW), 'aktif');
 });
 
+/* ---- Semantik tanggal: tutup inklusif, perbandingan kalender UTC ---- */
+
+test('statusJadwal: tanggal tutup inklusif (masih aktif pada hari tutup)', () => {
+  // tutup_at = 2026-10-11, now = 2026-10-11T23:59:59Z -> masih aktif.
+  const set = setAktif({ tutup_at: '2026-10-11' });
+  assert.equal(statusJadwal(set, new Date('2026-10-11T23:59:59Z')), 'aktif');
+});
+
+test('statusJadwal: tutup tepat setelah hari tutup', () => {
+  const set = setAktif({ tutup_at: '2026-10-11' });
+  assert.equal(statusJadwal(set, new Date('2026-10-12T00:00:00Z')), 'tutup');
+});
+
+test('statusJadwal: hari rilis sudah aktif sejak awal hari', () => {
+  const set = setAktif({ rilis_at: '2026-10-11' });
+  assert.equal(statusJadwal(set, new Date('2026-10-11T00:00:00Z')), 'aktif');
+  assert.equal(statusJadwal(set, new Date('2026-10-10T23:59:59Z')), 'belum');
+});
+
+test('setTersediaUntukPeserta: aktif pada hari tutup, tutup setelahnya', () => {
+  const set = setAktif({ tutup_at: '2026-10-11' });
+  assert.equal(setTersediaUntukPeserta(set, new Date('2026-10-11T23:59:59Z')), true);
+  assert.equal(setTersediaUntukPeserta(set, new Date('2026-10-12T00:00:00Z')), false);
+});
+
 test('setTersediaUntukPeserta menolak set draf/terjadwal walau jadwal jalan', () => {
   assert.equal(setTersediaUntukPeserta(setAktif({ status: 'draf' }), NOW), false);
   assert.equal(setTersediaUntukPeserta(setAktif({ status: 'terjadwal' }), NOW), false);

@@ -25,14 +25,23 @@ function keTanggal(nilai) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// Status jadwal set relatif terhadap `now`:
-// - 'belum'  : rilis_at di masa depan
-// - 'tutup'  : tutup_at sudah lewat
-// - 'aktif'  : dalam rentang jadwal
+// Normalisasi ke awal hari (UTC) agar perbandingan berbasis tanggal kalender.
+// Kolom rilis_at/tutup_at bertipe DATE, sehingga nilainya merepresentasikan
+// awal hari pada tanggal tersebut.
+function awalHari(nilai) {
+  const d = keTanggal(nilai);
+  if (!d) return null;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+// Status jadwal set relatif terhadap `now`, dibandingkan per tanggal kalender (UTC):
+// - 'belum'  : tanggal `now` sebelum tanggal rilis
+// - 'tutup'  : tanggal `now` setelah tanggal tutup (tanggal tutup inklusif)
+// - 'aktif'  : dalam rentang tanggal, termasuk hari rilis dan hari tutup
 export function statusJadwal(set, now = new Date()) {
-  const rilis = keTanggal(set?.rilis_at ?? set?.rilis);
-  const tutup = keTanggal(set?.tutup_at ?? set?.tutup);
-  const ref = keTanggal(now) ?? new Date();
+  const rilis = awalHari(set?.rilis_at ?? set?.rilis);
+  const tutup = awalHari(set?.tutup_at ?? set?.tutup);
+  const ref = awalHari(now) ?? awalHari(new Date());
 
   if (rilis && ref < rilis) return 'belum';
   if (tutup && ref > tutup) return 'tutup';

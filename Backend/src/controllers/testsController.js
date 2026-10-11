@@ -3,6 +3,7 @@ import { query, withTransaction } from '../config/db.js';
 import { evaluate } from '../services/scoringService.js';
 import {
   pilihSet,
+  setTersediaUntukPeserta,
   validasiJawaban,
   bolehMulaiPosttest,
   cekRetensi,
@@ -63,6 +64,8 @@ async function ambilSetAktif(jalur, type, setId) {
     );
     const set = rows[0];
     if (!set || set.jalur !== jalur || set.tipe !== tipeSet) return null;
+    // Terapkan validasi status & jadwal yang sama seperti jalur tanpa setId.
+    if (!setTersediaUntukPeserta(set)) return null;
     return set;
   }
 

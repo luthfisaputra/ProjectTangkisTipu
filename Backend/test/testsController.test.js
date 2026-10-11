@@ -109,6 +109,89 @@ test('startTest: sukses -> 201 tanpa field kunci pada soal', async () => {
   }
 });
 
+/* ---- startTest dengan setId eksplisit: status & jadwal wajib ditegakkan ---- */
+
+test('startTest: setId draf -> 404 SET_NOT_AVAILABLE', async () => {
+  setQuery(async (text) => {
+    if (text.includes('FROM participants')) return { rows: [{ id: 'p1', track: 1 }] };
+    if (text.includes('FROM question_sets')) return { rows: [{ ...SET_AKTIF, status: 'draf' }] };
+    return { rows: [] };
+  });
+  const res = mockRes();
+  await startTest(
+    { params: { type: 'pretest' }, body: { token: 'TKP-ABCDEFGH', setId: 'SET-1' } },
+    res,
+    (e) => {
+      throw e;
+    },
+  );
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error.code, 'SET_NOT_AVAILABLE');
+});
+
+test('startTest: setId terjadwal (belum rilis) -> 404 SET_NOT_AVAILABLE', async () => {
+  setQuery(async (text) => {
+    if (text.includes('FROM participants')) return { rows: [{ id: 'p1', track: 1 }] };
+    if (text.includes('FROM question_sets')) {
+      return { rows: [{ ...SET_AKTIF, status: 'terjadwal', rilis_at: '2099-01-01' }] };
+    }
+    return { rows: [] };
+  });
+  const res = mockRes();
+  await startTest(
+    { params: { type: 'pretest' }, body: { token: 'TKP-ABCDEFGH', setId: 'SET-1' } },
+    res,
+    (e) => {
+      throw e;
+    },
+  );
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error.code, 'SET_NOT_AVAILABLE');
+});
+
+test('startTest: setId sudah tutup -> 404 SET_NOT_AVAILABLE', async () => {
+  setQuery(async (text) => {
+    if (text.includes('FROM participants')) return { rows: [{ id: 'p1', track: 1 }] };
+    if (text.includes('FROM question_sets')) {
+      return { rows: [{ ...SET_AKTIF, tutup_at: '2000-01-01' }] };
+    }
+    return { rows: [] };
+  });
+  const res = mockRes();
+  await startTest(
+    { params: { type: 'pretest' }, body: { token: 'TKP-ABCDEFGH', setId: 'SET-1' } },
+    res,
+    (e) => {
+      throw e;
+    },
+  );
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error.code, 'SET_NOT_AVAILABLE');
+});
+
+test('startTest: setId aktif & dalam jadwal -> 201', async () => {
+  setQuery(async (text) => {
+    if (text.includes('FROM participants')) return { rows: [{ id: 'p1', track: 1 }] };
+    if (text.includes('FROM question_sets')) return { rows: [SET_AKTIF] };
+    if (text.includes('FROM test_attempts')) return { rows: [] };
+    if (text.includes('FROM questions')) {
+      return { rows: SOAL.map(({ kunci, penjelasan, kasus_nyata, ...rest }) => rest) };
+    }
+    if (text.includes('INSERT INTO test_attempts')) return { rows: [{ id: 'a1' }] };
+    return { rows: [] };
+  });
+  const res = mockRes();
+  await startTest(
+    { params: { type: 'pretest' }, body: { token: 'TKP-ABCDEFGH', setId: 'SET-1' } },
+    res,
+    (e) => {
+      throw e;
+    },
+  );
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.setId, 'SET-1');
+});
+
 test('startTest: posttest sudah disubmit -> 409 ATTEMPT_LIMIT_REACHED', async () => {
   setQuery(async (text) => {
     if (text.includes('FROM participants')) return { rows: [{ id: 'p1', track: 1 }] };
