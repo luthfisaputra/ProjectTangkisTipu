@@ -11,6 +11,7 @@ import progressRouter from './routes/progress.js';
 import testsRouter from './routes/tests.js';
 import adminAuthRouter from './routes/adminAuth.js';
 import adminRouter from './routes/admin.js';
+import adminSetSoalRouter from './routes/adminSetSoal.js';
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/modules', modulesRouter);
 app.use('/api/progress', progressRouter);
 app.use('/api/tests', testsRouter);
 app.use('/api/admin/auth', adminAuthRouter);
+app.use('/api/admin', adminSetSoalRouter);
 app.use('/api/admin', adminRouter);
 
 app.use(notFound);
