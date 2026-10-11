@@ -1,5 +1,10 @@
--- 009_backfill_legacy_sets.sql — backfill opsional rekaman lama ke set default.
+-- 009_backfill_legacy_sets.optional.sql — backfill OPSIONAL rekaman lama ke set default.
 -- Additive & idempoten. TIDAK menghapus/mengubah data lama.
+--
+-- PENTING (BE-12): file ini memakai penanda '.optional.' sehingga runner
+-- `node src/db/migrate.js` TIDAK menjalankannya otomatis. Jalankan manual:
+--   node src/db/run-optional-migration.js 009_backfill_legacy_sets.optional.sql
+-- Keputusan apakah backfill diinginkan di produksi masih menunggu konfirmasi admin.
 --
 -- Tujuan: mengaitkan soal pretest lama (set_id IS NULL) dan attempt lama
 -- (set_id IS NULL) ke satu set default per (track, type) agar query berbasis set
@@ -18,7 +23,7 @@
 --   UPDATE test_attempts SET set_id = NULL
 --     WHERE set_id IN (SELECT id FROM question_sets WHERE id LIKE 'SET-DEFAULT-%');
 --   DELETE FROM question_sets WHERE id LIKE 'SET-DEFAULT-%';
---   (hapus baris '009_backfill_legacy_sets.sql' dari schema_migrations bila ingin menjalankan ulang)
+--   (hapus baris '009_backfill_legacy_sets.optional.sql' dari schema_migrations bila ingin menjalankan ulang)
 --
 -- Validasi setelah migrasi:
 --   SELECT COUNT(*) FROM questions WHERE set_id IS NULL;      -- sisa soal tanpa set

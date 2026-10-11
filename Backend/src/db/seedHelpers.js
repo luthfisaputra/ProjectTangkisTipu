@@ -98,5 +98,41 @@ export function validateQuestionSetsData(data) {
     if (!tipe.has(s.tipe)) errors.push(`set ${s.id}: tipe tidak valid`);
     if (!status.has(s.status)) errors.push(`set ${s.id}: status tidak valid`);
   }
+
+  // Validasi pemetaan soal->set: setiap target harus menunjuk set yang ada,
+  // dan tipe set harus cocok dengan tipe tes pemetaan (pretest -> 'pre').
+  const map = data._pemetaanSoalKeSet;
+  if (map) {
+    const byId = new Map(data.sets.map((s) => [s.id, s]));
+    for (const [tipeTes, perTrack] of Object.entries(map)) {
+      if (tipeTes.startsWith('_') || tipeTes === 'catatan' || tipeTes === 'keputusanDiperlukan') {
+        continue;
+      }
+      const tipeSetDiharapkan = { pretest: 'pre', posttest: 'post', retensi: 'retensi' }[tipeTes];
+      if (!tipeSetDiharapkan) continue;
+      for (const [track, setId] of Object.entries(perTrack ?? {})) {
+        if (setId === null) continue; // celah yang didokumentasikan, bukan error
+        const set = byId.get(setId);
+        if (!set) {
+          errors.push(`pemetaan ${tipeTes} track ${track}: set ${setId} tidak ada`);
+          continue;
+        }
+        if (set.tipe !== tipeSetDiharapkan) {
+          errors.push(
+            `pemetaan ${tipeTes} track ${track}: set ${setId} bertipe '${set.tipe}', harus '${tipeSetDiharapkan}'`,
+          );
+        }
+      }
+    }
+  }
   return errors;
+}
+
+// Kembalikan set_id untuk (tipeTes, track) dari pemetaan eksplisit, atau null
+// bila tidak dipetakan. Tidak pernah mengarang pemetaan.
+export function resolveSetId(data, tipeTes, track) {
+  const map = data?._pemetaanSoalKeSet?.[tipeTes];
+  if (!map) return null;
+  const value = map[String(track)];
+  return value ?? null;
 }

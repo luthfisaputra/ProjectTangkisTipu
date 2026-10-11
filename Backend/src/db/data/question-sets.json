@@ -66,5 +66,18 @@
     { "code": "PR-4078", "label": "SMAN 12 Jakarta - Kelas 8B" },
     { "code": "PR-5510", "label": "Ibu-ibu PKK RW 03" },
     { "code": "PR-8834", "label": "Komunitas Lansia Sejahtera" }
-  ]
+  ],
+  "_pemetaanSoalKeSet": {
+    "catatan": "Pemetaan eksplisit soal pretest (type='pretest', tipe set 'pre') ke set soal, per track. HANYA memuat pemetaan yang didukung sumber data. Track tanpa set 'pre' yang cocok sengaja dibiarkan kosong (null) dan TIDAK dikarang.",
+    "pretest": {
+      "0": "SET-ANK-PRE-01",
+      "1": "SET-DWS-DRAFT-03",
+      "2": null
+    },
+    "keputusanDiperlukan": [
+      "Track 2 (lansia) belum punya set tipe 'pre'. Perlu dibuat set pretest lansia sebelum soal lansia dapat dikaitkan.",
+      "SET-DWS-DRAFT-03 berstatus 'draf' sehingga belum tersedia untuk peserta; perlu dipublikasikan bila soal dewasa harus dapat dikerjakan.",
+      "Belum ada set tipe 'post' untuk track 0 (anak) dan track 1 (dewasa) selain SET-DWS-POST-02; soal post-test belum tersedia di sumber data."
+    ]
+  }
 }

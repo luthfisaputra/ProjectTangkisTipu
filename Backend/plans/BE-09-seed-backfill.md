@@ -67,8 +67,11 @@ Pemetaan ini juga diekspor sebagai `FIELD_MAP` di `seedHelpers.js` dan diverifik
 - Tidak ada `DELETE`/`TRUNCATE`/`DROP` di skrip seed.
 - `SEED_FORCE=1` hanya untuk kasus sengaja memperbarui baris seed.
 
-## 5. Backfill rekaman lama (migrasi 009)
+## 5. Backfill rekaman lama (migrasi 009) — OPSIONAL (BE-12)
 
+- File: `009_backfill_legacy_sets.optional.sql` (penanda `.optional.`).
+- **Tidak dijalankan otomatis** oleh `node src/db/migrate.js` (BE-12). Runner melewati file
+  berpenanda `.optional.`. Jalankan manual: `node src/db/run-optional-migration.js 009_backfill_legacy_sets.optional.sql`.
 - Membuat set default deterministik `SET-DEFAULT-<track>-<type>` untuk soal/attempt lama.
 - Hanya mengisi baris `set_id IS NULL`; baris yang sudah punya set tidak disentuh.
 - `ON CONFLICT (id) DO NOTHING` → set default tidak menimpa set admin.
@@ -77,14 +80,26 @@ Pemetaan ini juga diekspor sebagai `FIELD_MAP` di `seedHelpers.js` dan diverifik
 - **Validasi** pasca-migrasi: `SELECT COUNT(*) FROM questions WHERE set_id IS NULL;` dan
   `SELECT COUNT(*) FROM test_attempts WHERE set_id IS NULL;`.
 
+### 5b. Pemetaan soal → set (BE-12)
+
+- Pemetaan eksplisit ada di `question-sets.json` → `_pemetaanSoalKeSet.pretest` (per track).
+- `seed-questions.js` menulis kolom `set_id` memakai `resolveSetId()`; tidak mengarang pemetaan.
+- Pemetaan yang didukung sumber data: track 0 → `SET-ANK-PRE-01`, track 1 → `SET-DWS-DRAFT-03`.
+- **Celah yang didokumentasikan (bukan dikarang):** track 2 (lansia) belum punya set `pre`;
+  `SET-DWS-DRAFT-03` masih `draf`; belum ada set `post` untuk track 0/1. Lihat
+  `_pemetaanSoalKeSet.keputusanDiperlukan`.
+
 ## 6. Cara menjalankan (database pengembangan yang disiapkan eksplisit)
 
 ```
 cd Backend
-node src/db/migrate.js            # termasuk 009 (backfill opsional)
+node src/db/migrate.js            # migrasi wajib saja; 009 (.optional.) DILEWATI
+node src/db/seed-question-sets.js # 5 set + kode kelas + pivot (idempoten) — jalankan sebelum soal
+node src/db/seed-questions.js     # 30 soal pretest + kaitkan ke set (idempoten)
 node src/db/seed-class-codes.js   # kode kelas lama (opsional, tidak diubah)
-node src/db/seed-questions.js     # 30 soal pretest (idempoten)
-node src/db/seed-question-sets.js # 5 set + kode kelas + pivot (idempoten)
+
+# Backfill opsional (hanya bila admin memutuskan perlu):
+node src/db/run-optional-migration.js 009_backfill_legacy_sets.optional.sql
 ```
 
 Jalankan ulang perintah seed untuk membuktikan idempotensi: jumlah baris tidak bertambah

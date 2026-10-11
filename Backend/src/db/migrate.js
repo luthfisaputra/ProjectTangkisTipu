@@ -8,6 +8,16 @@ const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
 const TRACKING_TABLE = 'schema_migrations';
 
+// Migrasi opsional: file yang namanya mengandung '.optional.' TIDAK dijalankan
+// otomatis oleh runner ini. Backfill rekaman lama (009) bersifat opt-in agar
+// tidak mengubah data penting tanpa keputusan admin. Jalankan manual dengan:
+//   node src/db/run-optional-migration.js <file.sql>
+const OPTIONAL_MARKER = '.optional.';
+
+function isOptional(file) {
+  return file.includes(OPTIONAL_MARKER);
+}
+
 async function ensureTrackingTable(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS ${TRACKING_TABLE} (
@@ -36,6 +46,12 @@ async function run() {
     const done = await appliedMigrations(client);
 
     for (const file of files) {
+      if (isOptional(file)) {
+        console.log(`[migrate] lewati ${file} (migrasi opsional, jalankan manual)`);
+        skipped += 1;
+        continue;
+      }
+
       if (done.has(file)) {
         console.log(`[migrate] lewati ${file} (sudah diterapkan)`);
         skipped += 1;
