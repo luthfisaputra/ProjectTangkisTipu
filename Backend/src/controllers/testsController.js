@@ -1,22 +1,32 @@
 import { z } from 'zod';
 import { query, withTransaction } from '../config/db.js';
 import { evaluate } from '../services/scoringService.js';
+import {
+  pilihSet,
+  validasiJawaban,
+  bolehMulaiPosttest,
+  cekRetensi,
+  tipeSetDariTes,
+  trackDariJalur,
+} from '../services/setSelectionService.js';
 
-const TEST_TYPES = ['pretest', 'posttest'];
+const TEST_TYPES = ['pretest', 'posttest', 'retensi'];
 
 export const testTypeParamSchema = z.object({
-  type: z.enum(TEST_TYPES, { message: 'Tipe tes harus "pretest" atau "posttest".' }),
+  type: z.enum(TEST_TYPES, { message: 'Tipe tes harus "pretest", "posttest", atau "retensi".' }),
 });
 
 export const startTestSchema = z
   .object({
     token: z.string().trim().regex(/^TKP-[A-Z0-9]{8}$/, 'Format token tidak valid'),
+    setId: z.string().trim().min(1).max(80).optional(),
   })
   .strict();
 
 export const submitTestSchema = z
   .object({
     attemptId: z.string().uuid('attemptId tidak valid'),
+    token: z.string().trim().regex(/^TKP-[A-Z0-9]{8}$/, 'Format token tidak valid'),
     answers: z
       .array(
         z.object({
@@ -40,10 +50,46 @@ async function findParticipant(token) {
   return rows.length > 0 ? rows[0] : null;
 }
 
+// Ambil kandidat set untuk jalur peserta + tipe tes, lalu pilih yang aktif & dalam jadwal.
+async function ambilSetAktif(jalur, type, setId) {
+  const tipeSet = tipeSetDariTes(type);
+  if (!tipeSet) return null;
+
+  if (setId) {
+    const { rows } = await query(
+      `SELECT id, nama, jalur, tipe, status, rilis_at, tutup_at, created_at
+       FROM question_sets WHERE id = $1 LIMIT 1`,
+      [setId],
+    );
+    const set = rows[0];
+    if (!set || set.jalur !== jalur || set.tipe !== tipeSet) return null;
+    return set;
+  }
+
+  const { rows } = await query(
+    `SELECT id, nama, jalur, tipe, status, rilis_at, tutup_at, created_at
+     FROM question_sets WHERE jalur = $1 AND tipe = $2`,
+    [jalur, tipeSet],
+  );
+  return pilihSet(rows, { jalur, type });
+}
+
+async function ambilSoalSet(setId) {
+  const { rows } = await query(
+    `SELECT id, kategori, pertanyaan, opsi
+     FROM questions
+     WHERE set_id = $1 AND active = TRUE
+     ORDER BY created_at ASC, id ASC
+     LIMIT 10`,
+    [setId],
+  );
+  return rows;
+}
+
 export async function startTest(req, res, next) {
   try {
     const { type } = req.params;
-    const { token } = req.body;
+    const { token, setId } = req.body;
 
     const participant = await findParticipant(token);
     if (!participant) {
@@ -52,65 +98,95 @@ export async function startTest(req, res, next) {
       });
     }
 
-    let existingAttemptId = null;
-
-    if (type === 'posttest') {
-      const { rows: attempts } = await query(
-        `SELECT id, score FROM test_attempts
-         WHERE participant_id = $1 AND type = 'posttest'
-         ORDER BY created_at ASC`,
-        [participant.id],
-      );
-
-      const submitted = attempts.find((a) => a.score !== null);
-      if (submitted) {
-        return res.status(409).json({
-          error: {
-            code: 'ATTEMPT_LIMIT_REACHED',
-            message: 'Post-test hanya dapat dikerjakan satu kali.',
-          },
-        });
-      }
-
-      const pending = attempts.find((a) => a.score === null);
-      if (pending) {
-        existingAttemptId = pending.id;
-      }
-    }
-
-    const { rows: questions } = await query(
-      `SELECT id, kategori, pertanyaan, opsi
-       FROM questions
-       WHERE track = $1 AND type = $2 AND active = TRUE
-       ORDER BY id ASC
-       LIMIT 10`,
-      [participant.track, type],
-    );
-
-    if (questions.length === 0) {
-      const message =
-        type === 'posttest'
-          ? 'Soal post-test belum tersedia'
-          : 'Soal pre-test belum tersedia';
-      return res.status(404).json({
-        error: { code: 'QUESTIONS_NOT_AVAILABLE', message },
+    const jalur = Object.entries({ 0: 'anak', 1: 'dewasa', 2: 'lansia' }).find(
+      ([k]) => Number(k) === participant.track,
+    )?.[1];
+    if (!jalur) {
+      return res.status(400).json({
+        error: { code: 'INVALID_TRACK', message: 'Jalur peserta tidak dikenali.' },
       });
     }
 
-    let attemptId = existingAttemptId;
+    const set = await ambilSetAktif(jalur, type, setId);
+    if (!set) {
+      return res.status(404).json({
+        error: {
+          code: 'SET_NOT_AVAILABLE',
+          message: 'Set soal belum tersedia atau belum masuk jadwal.',
+        },
+      });
+    }
+
+    const { rows: attempts } = await query(
+      `SELECT id, set_id, type, score, created_at
+       FROM test_attempts
+       WHERE participant_id = $1 AND set_id = $2
+       ORDER BY created_at ASC`,
+      [participant.id, set.id],
+    );
+
+    let attemptId = null;
+
+    if (type === 'posttest') {
+      const cek = bolehMulaiPosttest(attempts, set.id);
+      if (!cek.boleh) {
+        return res.status(409).json({
+          error: {
+            code: 'ATTEMPT_LIMIT_REACHED',
+            message: 'Post-test hanya dapat dikerjakan satu kali per set.',
+          },
+        });
+      }
+      attemptId = cek.attemptId;
+    } else if (type === 'retensi') {
+      // Retensi hanya boleh setelah 14 hari sejak submit post-test terakhir.
+      const { rows: postRows } = await query(
+        `SELECT id, score, created_at FROM test_attempts
+         WHERE participant_id = $1 AND type = 'posttest' AND score IS NOT NULL
+         ORDER BY created_at DESC LIMIT 1`,
+        [participant.id],
+      );
+      const cek = cekRetensi(postRows[0]);
+      if (!cek.boleh) {
+        return res.status(409).json({
+          error: {
+            code: 'RETENSI_BELUM_TIBA',
+            message: 'Tes ulang baru tersedia setelah 14 hari sejak post-test terakhir.',
+            tersediaPada: cek.tersediaPada ? cek.tersediaPada.toISOString() : null,
+          },
+        });
+      }
+      const pending = attempts.find((a) => a.score === null);
+      attemptId = pending ? pending.id : null;
+    } else {
+      // Pretest boleh diulang: lanjutkan attempt pending bila ada.
+      const pending = attempts.find((a) => a.score === null);
+      attemptId = pending ? pending.id : null;
+    }
+
+    const questions = await ambilSoalSet(set.id);
+    if (questions.length === 0) {
+      return res.status(404).json({
+        error: { code: 'QUESTIONS_NOT_AVAILABLE', message: 'Soal pada set ini belum tersedia.' },
+      });
+    }
+
     if (!attemptId) {
       const { rows: attemptRows } = await query(
-        `INSERT INTO test_attempts (participant_id, type)
-         VALUES ($1, $2) RETURNING id`,
-        [participant.id, type],
+        `INSERT INTO test_attempts (participant_id, type, set_id)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [participant.id, type, set.id],
       );
       attemptId = attemptRows[0].id;
     }
 
+    // Respons peserta: tanpa kunci/penjelasan/kasus_nyata.
     res.status(201).json({
       attemptId,
       type,
       track: participant.track,
+      setId: set.id,
+      setNama: set.nama,
       questions: questions.map((q) => ({
         id: q.id,
         kategori: q.kategori,
@@ -126,11 +202,19 @@ export async function startTest(req, res, next) {
 export async function submitTest(req, res, next) {
   try {
     const { type } = req.params;
-    const { attemptId, answers } = req.body;
+    const { attemptId, token, answers } = req.body;
+
+    const participant = await findParticipant(token);
+    if (!participant) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Peserta tidak ditemukan.' },
+      });
+    }
 
     const outcome = await withTransaction(async (client) => {
+      // Klaim attempt secara atomik: hanya attempt milik peserta, belum disubmit.
       const { rows: attemptRows } = await client.query(
-        `SELECT id, participant_id, type, score
+        `SELECT id, participant_id, type, set_id, score
          FROM test_attempts WHERE id = $1 FOR UPDATE`,
         [attemptId],
       );
@@ -140,6 +224,11 @@ export async function submitTest(req, res, next) {
       }
 
       const attempt = attemptRows[0];
+
+      if (attempt.participant_id !== participant.id) {
+        return { status: 403, body: { error: { code: 'FORBIDDEN', message: 'Attempt ini bukan milik peserta.' } } };
+      }
+
       if (attempt.type !== type) {
         return { status: 400, body: { error: { code: 'TYPE_MISMATCH', message: 'Tipe tes tidak sesuai dengan attempt.' } } };
       }
@@ -148,28 +237,48 @@ export async function submitTest(req, res, next) {
         return { status: 409, body: { error: { code: 'ALREADY_SUBMITTED', message: 'Attempt ini sudah pernah disubmit.' } } };
       }
 
+      if (!attempt.set_id) {
+        return { status: 409, body: { error: { code: 'SET_MISSING', message: 'Attempt tidak terikat set soal.' } } };
+      }
+
+      // Soal harus berasal dari set attempt, aktif, dan set masih dalam jadwal.
+      const { rows: setRows } = await client.query(
+        `SELECT id, status, rilis_at, tutup_at FROM question_sets WHERE id = $1 LIMIT 1`,
+        [attempt.set_id],
+      );
+      const set = setRows[0];
+      if (!set) {
+        return { status: 409, body: { error: { code: 'SET_NOT_AVAILABLE', message: 'Set soal tidak ditemukan.' } } };
+      }
+
       const { rows: questions } = await client.query(
-        `SELECT id, kunci, penjelasan, kasus_nyata
+        `SELECT id, kategori, opsi, kunci, penjelasan, kasus_nyata
          FROM questions
-         WHERE track = (SELECT track FROM participants WHERE id = $1)
-           AND type = $2 AND active = TRUE
-         ORDER BY id ASC
+         WHERE set_id = $1 AND active = TRUE
+         ORDER BY created_at ASC, id ASC
          LIMIT 10`,
-        [attempt.participant_id, type],
+        [attempt.set_id],
       );
 
-      const validIds = new Set(questions.map((q) => q.id));
-      const invalid = answers.filter((a) => !validIds.has(String(a.questionId)));
-      if (invalid.length > 0) {
+      if (questions.length === 0) {
+        return { status: 409, body: { error: { code: 'QUESTIONS_NOT_AVAILABLE', message: 'Soal pada set ini tidak tersedia.' } } };
+      }
+
+      const cek = validasiJawaban(answers, questions);
+      if (!cek.valid) {
+        const details = [];
+        if (cek.duplikat.length > 0) {
+          details.push({ field: 'answers', message: `Jawaban duplikat: ${cek.duplikat.join(', ')}` });
+        }
+        if (cek.tidakDikenal.length > 0) {
+          details.push({ field: 'answers', message: `Soal bukan bagian set ini: ${cek.tidakDikenal.join(', ')}` });
+        }
+        if (cek.opsiTidakValid.length > 0) {
+          details.push({ field: 'answers', message: 'Pilihan jawaban di luar rentang opsi.' });
+        }
         return {
           status: 400,
-          body: {
-            error: {
-              code: 'INVALID_QUESTION',
-              message: 'Terdapat jawaban untuk soal yang bukan bagian dari tes ini.',
-              details: invalid.map((a) => ({ field: 'answers', message: a.questionId })),
-            },
-          },
+          body: { error: { code: 'INVALID_ANSWERS', message: 'Jawaban tidak valid.', details } },
         };
       }
 
@@ -185,10 +294,15 @@ export async function submitTest(req, res, next) {
         );
       }
 
-      await client.query(
-        `UPDATE test_attempts SET score = $1, passed = $2 WHERE id = $3`,
+      // Update atomik: hanya bila belum disubmit (cegah submit ganda bersamaan).
+      const { rows: updated } = await client.query(
+        `UPDATE test_attempts SET score = $1, passed = $2
+         WHERE id = $3 AND score IS NULL RETURNING id`,
         [result.score, result.passed, attemptId],
       );
+      if (updated.length === 0) {
+        return { status: 409, body: { error: { code: 'ALREADY_SUBMITTED', message: 'Attempt ini sudah pernah disubmit.' } } };
+      }
 
       if (type === 'pretest') {
         await client.query(
@@ -199,7 +313,7 @@ export async function submitTest(req, res, next) {
              updated_at    = NOW()`,
           [attempt.participant_id, result.score],
         );
-      } else {
+      } else if (type === 'posttest') {
         await client.query(
           `INSERT INTO progress (participant_id, posttest_score)
            VALUES ($1, $2)
@@ -215,6 +329,7 @@ export async function submitTest(req, res, next) {
         body: {
           attemptId,
           type,
+          setId: attempt.set_id,
           score: result.score,
           total: result.total,
           passed: result.passed,
@@ -250,7 +365,7 @@ export async function getResults(req, res, next) {
     }
 
     const { rows: attempts } = await query(
-      `SELECT id, type, score, passed, created_at
+      `SELECT id, type, set_id, score, passed, created_at
        FROM test_attempts
        WHERE participant_id = $1 AND score IS NOT NULL
        ORDER BY created_at ASC`,
@@ -275,6 +390,7 @@ export async function getResults(req, res, next) {
       attempts: attempts.map((a) => ({
         attemptId: a.id,
         type: a.type,
+        setId: a.set_id,
         score: a.score,
         passed: a.passed,
         createdAt: a.created_at,
