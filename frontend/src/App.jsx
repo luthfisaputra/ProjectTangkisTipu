@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Navbar from './components/Navbar.jsx'
 import Hero from './components/Hero.jsx'
 import JalurBelajar from './components/JalurBelajar.jsx'
@@ -34,6 +34,7 @@ import { modul02Lansia } from './data/modul02Lansia.jsx'
 import { modul03Lansia } from './data/modul03Lansia.jsx'
 import { modul04Lansia } from './data/modul04Lansia.jsx'
 import { SIMULASI_CHAT_MODUL } from './data/simulasiChatModul.jsx'
+import { getProgress, updateProgress } from './api.js'
 
 const MODUL = {
   'pelajar-01': modul01Pelajar,
@@ -77,19 +78,64 @@ export default function App() {
   const [sets, setSets] = useState(SET_SOAL)
   const [bankSoal, setBankSoal] = useState(() => SET_SOAL.reduce((acc, s) => ({ ...acc, [s.id]: DAFTAR_SOAL }), {}))
   const [progres, setProgres] = useState({ pretest: null, modusIds: [], skenario: 0, posttest: null })
+  const [progresError, setProgresError] = useState('')
+  // Simpan nilai progres terakhir yang sudah dikirim ke backend agar tidak
+  // mengirim request berulang untuk nilai yang sama.
+  const progresTersinkronRef = useRef({ modusDibaca: 0, skenario: 0 })
 
   // Skor selalu berasal dari respons backend (submit), bukan dihitung di frontend.
   const selesaikanPretest = (skor, hasil) =>
     setProgres((p) => ({ ...p, pretest: { skor, total: hasil?.total ?? 10, passed: hasil?.passed ?? null } }))
 
+  // Kirim progres parsial ke backend. Backend adalah sumber kebenaran dan
+  // nilainya tidak bisa turun (GREATEST), jadi aman dari state lokal usang.
+  const simpanProgres = useCallback(async (payload) => {
+    const token = peserta?.token
+    if (!token) return
+    try {
+      const res = await updateProgress(token, payload)
+      const p = res?.progress
+      if (!p) return
+      progresTersinkronRef.current = {
+        modusDibaca: p.modusDibaca ?? 0,
+        skenario: p.skenario ?? 0,
+      }
+      setProgres((prev) => ({
+        ...prev,
+        // modusIds lokal dipertahankan; jumlah dibaca mengikuti backend.
+        modusIds: prev.modusIds,
+        skenario: Math.max(prev.skenario, p.skenario ?? 0),
+        pretest: p.pretest > 0 ? { skor: p.pretest, total: 10, passed: prev.pretest?.passed ?? null } : prev.pretest,
+        posttest: p.posttest > 0 ? { skor: p.posttest, total: 10, passed: prev.posttest?.passed ?? null } : prev.posttest,
+      }))
+      setProgresError('')
+    } catch {
+      setProgresError('Gagal menyimpan progres ke server. Perubahanmu tetap tersimpan di perangkat ini.')
+    }
+  }, [peserta?.token])
+
   const tandaiModusDibaca = (id) => {
     setProgres((p) => {
       if (p.modusIds.includes(id)) return p
-      return { ...p, modusIds: [...p.modusIds, id] }
+      const modusIds = [...p.modusIds, id]
+      const jumlah = modusIds.length
+      if (jumlah > progresTersinkronRef.current.modusDibaca) {
+        simpanProgres({ modusDibaca: Math.min(jumlah, 8) })
+      }
+      return { ...p, modusIds }
     })
   }
 
-  const tandaiSkenarioSelesai = () => setProgres((p) => ({ ...p, skenario: Math.min(p.skenario + 1, 8) }))
+  const tandaiSkenarioSelesai = () => {
+    setProgres((p) => {
+      const skenario = Math.min(p.skenario + 1, 8)
+      if (skenario > progresTersinkronRef.current.skenario) {
+        simpanProgres({ skenario })
+      }
+      return { ...p, skenario }
+    })
+  }
+
   const selesaikanPosttest = (skor, hasil) =>
     setProgres((p) => ({ ...p, posttest: { skor, total: hasil?.total ?? 10, passed: hasil?.passed ?? null } }))
 
@@ -105,6 +151,46 @@ export default function App() {
       // Abaikan bila localStorage tidak tersedia.
     }
   }, [peserta])
+
+  // Muat progres dari backend saat token peserta tersedia. Backend adalah
+  // sumber kebenaran; nilai lokal tidak pernah menurunkannya.
+  useEffect(() => {
+    const token = peserta?.token
+    if (!token) return
+    let aktif = true
+    const controller = new AbortController()
+
+    const muat = async () => {
+      try {
+        const res = await getProgress(token, { signal: controller.signal })
+        if (!aktif) return
+        const p = res?.progress
+        if (!p) return
+        progresTersinkronRef.current = {
+          modusDibaca: p.modusDibaca ?? 0,
+          skenario: p.skenario ?? 0,
+        }
+        setProgres((prev) => ({
+          ...prev,
+          skenario: Math.max(prev.skenario, p.skenario ?? 0),
+          pretest: p.pretest > 0 ? { skor: p.pretest, total: 10, passed: prev.pretest?.passed ?? null } : prev.pretest,
+          posttest: p.posttest > 0 ? { skor: p.posttest, total: 10, passed: prev.posttest?.passed ?? null } : prev.posttest,
+        }))
+        setProgresError('')
+      } catch (err) {
+        if (err && err.name === 'AbortError') return
+        if (!aktif) return
+        // Jangan hapus identitas peserta hanya karena request gagal sementara.
+        setProgresError('Gagal memuat progres dari server. Menampilkan data terakhir yang tersimpan.')
+      }
+    }
+
+    muat()
+    return () => {
+      aktif = false
+      controller.abort()
+    }
+  }, [peserta?.token])
 
   useEffect(() => {
     const els = document.querySelectorAll('.reveal:not(.is-visible)')
@@ -147,7 +233,10 @@ export default function App() {
     setModulId(null)
     setSimulasiModulId(null)
     setTesStep(1)
-    if (path === 'uji-skor-tes') setProgres({ pretest: null, modusIds: [], skenario: 0, posttest: null })
+    if (path === 'uji-skor-tes') {
+      setProgres({ pretest: null, modusIds: [], skenario: 0, posttest: null })
+      progresTersinkronRef.current = { modusDibaca: 0, skenario: 0 }
+    }
     window.scrollTo({ top: 0 })
   }
 
@@ -247,7 +336,8 @@ export default function App() {
         ) : page === 'dashboard' ? (
           <DashboardPeserta
             peserta={peserta}
-            progres={{ ...progres, modusDibaca: progres.modusIds.length }}
+            progres={{ ...progres, modusDibaca: Math.max(progres.modusIds.length, progresTersinkronRef.current.modusDibaca) }}
+            progresError={progresError}
             onSelesaiPretest={() => navigate('pretest')}
             onSelesaiPosttest={() => navigate('posttest')}
             onModul={() => navigate('belajar-modus')}

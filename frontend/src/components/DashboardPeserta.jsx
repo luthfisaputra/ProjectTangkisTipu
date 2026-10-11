@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TRACKS } from '../data/jalurBelajar.jsx'
 import { salinKode, unduhKartuPeserta } from '../utils/kartuPeserta.js'
+import { getTestResults, ApiError } from '../api.js'
+
+const LABEL_TES = { pretest: 'Pre-test', posttest: 'Post-test', retensi: 'Tes Ulang' }
 
 const HIGHLIGHTS = [
   {
@@ -29,14 +32,17 @@ const LOCK_HINT = {
   posttest: 'Selesaikan Simulasi dulu',
 }
 
-function getSteps(progres, onPretest, onPosttest, onModulPopuler, onSimulasiKasus, notify) {
+function getSteps(progres, onPretest, onPosttest, onModulPopuler, onSimulasiKasus, notify, skorBackend = {}) {
   const pretestDone = progres.pretest !== null
   const modusDone = progres.modusDibaca >= 8
   const skenarioDone = progres.skenario >= 1
   const posttestDone = progres.posttest !== null
+  // Skor dari backend (bila tersedia) diprioritaskan atas nilai lokal.
+  const skorPretest = skorBackend.pretest ?? progres.pretest?.skor
+  const skorPosttest = skorBackend.posttest ?? progres.posttest?.skor
 
   const step1 = pretestDone
-    ? { id: 'pretest', num: '1', state: 'done', title: 'Pre-test Kemampuan Awal', desc: '10 soal pilihan ganda telah dikerjakan untuk mengukur pemahaman awal rekayasa sosial.', badge: `Selesai • Skor: ${progres.pretest.skor}/${progres.pretest.total ?? 10}`, icon: 'check_circle', badgeIcon: 'done_all', actionLabel: 'Lihat Hasil Jawaban', actionIcon: 'visibility', onAction: () => notify('Halaman hasil pre-test akan segera dibuka.'), connectorClass: 'bg-tertiary' }
+    ? { id: 'pretest', num: '1', state: 'done', title: 'Pre-test Kemampuan Awal', desc: '10 soal pilihan ganda telah dikerjakan untuk mengukur pemahaman awal rekayasa sosial.', badge: `Selesai • Skor: ${skorPretest ?? 0}/${progres.pretest.total ?? 10}`, icon: 'check_circle', badgeIcon: 'done_all', actionLabel: 'Lihat Hasil Jawaban', actionIcon: 'visibility', onAction: () => notify('Halaman hasil pre-test akan segera dibuka.'), connectorClass: 'bg-tertiary' }
     : { id: 'pretest', num: '1', state: 'active', title: 'Pre-test Kemampuan Awal', desc: '10 soal pilihan ganda untuk mengukur pemahaman awal rekayasa sosial.', badge: 'Belum Dikerjakan', icon: 'edit_document', badgeIcon: 'bolt', actionLabel: 'Mulai Pre-test', actionIcon: 'arrow_forward', onAction: () => onPretest(), connectorClass: 'border-dashed border-outline-variant' }
 
   const step2 = modusDone
@@ -48,7 +54,7 @@ function getSteps(progres, onPretest, onPosttest, onModulPopuler, onSimulasiKasu
     : { id: 'simulasi', num: '3', state: modusDone ? 'active' : 'upcoming', title: 'Coba Simulasi Kasus Interaktif', desc: 'Hadapi percakapan manipulatif secara nyata di lingkungan aman tanpa risiko kerugian finansial.', badge: '1 Skenario Acak', icon: 'chat', badgeIcon: 'bolt', actionLabel: 'Mulai Simulasi', actionIcon: 'arrow_forward', onAction: () => onSimulasiKasus(), connectorClass: 'border-dashed border-outline-variant' }
 
   const step4 = posttestDone
-    ? { id: 'posttest', num: '4', state: 'done', title: 'Post-test & Evaluasi Akhir', desc: 'Post-test selesai. Dapatkan sertifikat kompetensi jika skor ≥ 8.', badge: `Selesai • Skor: ${progres.posttest.skor}/${progres.posttest.total ?? 10}`, icon: 'workspace_premium', badgeIcon: 'done_all', actionLabel: 'Lihat Sertifikat', actionIcon: 'workspace_premium', onAction: () => notify('Sertifikat kompetensimu akan segera dibuka.'), connectorClass: 'bg-primary' }
+    ? { id: 'posttest', num: '4', state: 'done', title: 'Post-test & Evaluasi Akhir', desc: 'Post-test selesai. Dapatkan sertifikat kompetensi jika skor ≥ 8.', badge: `Selesai • Skor: ${skorPosttest ?? 0}/${progres.posttest.total ?? 10}`, icon: 'workspace_premium', badgeIcon: 'done_all', actionLabel: 'Lihat Sertifikat', actionIcon: 'workspace_premium', onAction: () => notify('Sertifikat kompetensimu akan segera dibuka.'), connectorClass: 'bg-primary' }
     : { id: 'posttest', num: '4', state: skenarioDone ? 'active' : 'locked', title: 'Post-test & Evaluasi Akhir', desc: 'Terbuka setelah menyelesaikan simulasi skenario. Dapatkan sertifikat kompetensi jika skor ≥ 8.', badge: skenarioDone ? 'Siap Dikerjakan' : 'Terkunci', icon: skenarioDone ? 'quiz' : 'lock', badgeIcon: skenarioDone ? 'bolt' : 'lock', actionLabel: 'Mulai Post-test', actionIcon: skenarioDone ? 'arrow_forward' : 'lock', onAction: () => onPosttest() }
 
   return [step1, step2, step3, step4]
@@ -246,6 +252,7 @@ function ProgressRing({ percent }) {
 export default function DashboardPeserta({
   peserta,
   progres = { pretest: null, modusDibaca: 0, skenario: 0, posttest: null },
+  progresError = '',
   onSelesaiPretest = () => {},
   onSelesaiPosttest = () => {},
   onModul = () => {},
@@ -254,7 +261,7 @@ export default function DashboardPeserta({
   onSimulasi = () => {},
   onHome = () => {},
 }) {
-  const token = peserta?.token || 'TKP-8924-X'
+  const token = peserta?.token || ''
   const nickname = peserta?.nickname?.trim() || 'Kawan Waspada'
   const track = TRACKS[peserta?.track] || TRACKS[1]
   const classCode = (peserta?.classCode || '').trim()
@@ -262,13 +269,65 @@ export default function DashboardPeserta({
   const [showRetake, setShowRetake] = useState(true)
   const [copied, setCopied] = useState(false)
   const [toast, setToast] = useState('')
+  const [hasil, setHasil] = useState(null)
+  const [hasilLoading, setHasilLoading] = useState(false)
+  const [hasilError, setHasilError] = useState('')
 
   const notify = (msg) => {
     setToast(msg)
     window.setTimeout(() => setToast(''), 3500)
   }
 
-  const steps = getSteps(progres, onSelesaiPretest, onSelesaiPosttest, onModulPopuler, onSimulasiKasus, notify)
+  // Muat riwayat hasil tes dari backend. Skor selalu berasal dari server.
+  useEffect(() => {
+    if (!token) {
+      setHasil(null)
+      return
+    }
+    let aktif = true
+    const controller = new AbortController()
+
+    const muat = async () => {
+      setHasilLoading(true)
+      setHasilError('')
+      try {
+        const res = await getTestResults(token, { signal: controller.signal })
+        if (!aktif) return
+        setHasil(res || null)
+      } catch (err) {
+        if (err && err.name === 'AbortError') return
+        if (!aktif) return
+        setHasilError(
+          err instanceof ApiError
+            ? err.message
+            : 'Gagal memuat riwayat hasil tes. Coba muat ulang halaman.'
+        )
+      } finally {
+        if (aktif) setHasilLoading(false)
+      }
+    }
+
+    muat()
+    return () => {
+      aktif = false
+      controller.abort()
+    }
+  }, [token])
+
+  const attempts = Array.isArray(hasil?.attempts) ? hasil.attempts : []
+  const byType = hasil?.summary?.byType || {}
+  const skorPretest = byType.pretest?.lastScore ?? null
+  const skorPosttest = byType.posttest?.lastScore ?? null
+
+  const steps = getSteps(
+    progres,
+    onSelesaiPretest,
+    onSelesaiPosttest,
+    onModulPopuler,
+    onSimulasiKasus,
+    notify,
+    { pretest: skorPretest, posttest: skorPosttest }
+  )
   const totalLangkah = steps.filter((s) => s.state === 'done').length
   const persen = Math.round((totalLangkah / 4) * 100)
   const tahapAktif = steps.findIndex((s) => s.state === 'active') + 1
@@ -305,6 +364,18 @@ export default function DashboardPeserta({
               <span className="material-symbols-outlined text-[22px]">check_circle</span>
             </div>
             <span className="font-label-md text-label-md text-on-surface">{toast}</span>
+          </div>
+        )}
+
+        {/* Peringatan sinkronisasi progres (tidak memblokir UI) */}
+        {progresError && (
+          <div
+            className="w-full bg-warning-yellow-light text-on-surface py-space-sm px-margin md:px-margin-tablet lg:px-margin-desktop"
+            role="status" aria-live="polite">
+            <div className="max-w-[1200px] mx-auto flex items-center gap-space-sm">
+              <span className="material-symbols-outlined text-secondary text-[20px] shrink-0">cloud_off</span>
+              <span className="font-body-sm text-body-sm">{progresError}</span>
+            </div>
           </div>
         )}
 
@@ -449,6 +520,60 @@ export default function DashboardPeserta({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Riwayat Hasil Tes (dari backend) */}
+              <div className="bg-surface-white rounded-xl p-space-lg sm:p-space-xl shadow-sm flex flex-col gap-space-lg reveal">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span
+                      className="font-label-sm text-label-sm text-primary uppercase font-bold tracking-wider">Riwayat
+                      Hasil</span>
+                    <h3 className="font-headline-sm text-headline-sm text-on-surface">Hasil Tes Kamu</h3>
+                  </div>
+                  <span className="material-symbols-outlined text-primary text-[24px]">history</span>
+                </div>
+
+                {hasilLoading ? (
+                  <div className="flex items-center gap-space-sm text-text-muted font-body-sm text-body-sm" role="status">
+                    <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                    Memuat riwayat hasil tes…
+                  </div>
+                ) : hasilError ? (
+                  <div className="flex items-start gap-space-sm p-space-md rounded-xl bg-danger-red-light text-danger-red font-body-sm text-body-sm" role="alert">
+                    <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
+                    <span>{hasilError}</span>
+                  </div>
+                ) : attempts.length === 0 ? (
+                  <div className="flex items-start gap-space-sm p-space-md rounded-xl bg-surface-container-low text-text-muted font-body-sm text-body-sm">
+                    <span className="material-symbols-outlined text-[18px] shrink-0">info</span>
+                    <span>Belum ada hasil tes. Kerjakan pre-test atau post-test untuk melihat skormu di sini.</span>
+                  </div>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-border-subtle">
+                    {attempts.map((a) => (
+                      <li key={a.attemptId} className="py-space-sm flex items-center justify-between gap-space-md">
+                        <div className="flex flex-col">
+                          <span className="font-label-md text-label-md text-on-surface font-semibold">
+                            {LABEL_TES[a.type] || a.type}
+                          </span>
+                          <span className="font-body-sm text-body-sm text-text-muted">
+                            {a.setNama || 'Set soal'}
+                            {a.createdAt ? ` • ${new Date(a.createdAt).toLocaleDateString('id-ID')}` : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-space-sm shrink-0">
+                          <span className="font-headline-sm text-headline-sm text-primary font-bold">{a.score}/10</span>
+                          <span
+                            className={`inline-flex items-center gap-1 px-space-sm py-0.5 rounded-full font-label-sm text-label-sm font-semibold ${a.passed ? 'bg-safe-green-light text-tertiary' : 'bg-surface-container-high text-text-muted'}`}>
+                            <span className="material-symbols-outlined text-[14px]">{a.passed ? 'check_circle' : 'cancel'}</span>
+                            {a.passed ? 'Lulus' : 'Belum Lulus'}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </section>
 

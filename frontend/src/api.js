@@ -128,4 +128,14 @@ export function getTestResults(token, options) {
   return request('GET', `api/tests/${encodeURIComponent(token)}/results`, options);
 }
 
+// Progres peserta. Respons backend: { progress: { pretest, modusDibaca, skenario, posttest, updatedAt } }.
+export function getProgress(token, options) {
+  return request('GET', `api/progress/${encodeURIComponent(token)}`, options);
+}
+
+// Simpan progres parsial. payload: { modusDibaca?, skenario? } (0-8, tidak bisa turun).
+export function updateProgress(token, payload, options) {
+  return request('PATCH', `api/progress/${encodeURIComponent(token)}`, { body: payload, ...options });
+}
+
 export default api;
