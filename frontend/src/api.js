@@ -39,4 +39,16 @@ export const createParticipant = ({ nama, kelas, classCode }) =>
     body: JSON.stringify({ nama, kelas, classCode }),
   })
 
-export default { request, validateClassCode, createParticipant }
+export const startTest = (type, token) =>
+  request(`/api/tests/${type}/start`, {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
+
+export const submitTest = (type, { attemptId, answers }) =>
+  request(`/api/tests/${type}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ attemptId, answers }),
+  })
+
+export default { request, validateClassCode, createParticipant, startTest, submitTest }

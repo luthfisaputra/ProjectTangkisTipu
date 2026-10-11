@@ -1,22 +1,50 @@
-import { useState } from 'react'
-import { getSoalPretest, LABEL_SET_PRETEST } from '../data/pretestSoal.jsx'
+import { useEffect, useState } from 'react'
+import { startTest, submitTest } from '../api.js'
 
 const HURUF = ['A', 'B', 'C', 'D']
 
 export default function Pretest({ token = '', track = 1, onSelesai = () => {}, onKeluar = () => {} }) {
   const trackIdx = Number(track) >= 0 && Number(track) <= 2 ? Number(track) : 1
-  const soalList = getSoalPretest(trackIdx)
-  const TOTAL = soalList.length
+
+  const [attemptId, setAttemptId] = useState(null)
+  const [soalList, setSoalList] = useState([])
+  const [memuat, setMemuat] = useState(true)
+  const [error, setError] = useState('')
+  const [mengirim, setMengirim] = useState(false)
 
   const [idx, setIdx] = useState(0)
-  const [jawaban, setJawaban] = useState(() => soalList.map(() => null))
+  const [jawaban, setJawaban] = useState([])
   const [showExit, setShowExit] = useState(false)
   const [showSubmit, setShowSubmit] = useState(false)
 
+  useEffect(() => {
+    let aktif = true
+    setMemuat(true)
+    setError('')
+    startTest('pretest', token)
+      .then((data) => {
+        if (!aktif) return
+        setAttemptId(data.attemptId)
+        setSoalList(data.questions || [])
+        setJawaban((data.questions || []).map(() => null))
+      })
+      .catch((err) => {
+        if (!aktif) return
+        setError(err.message || 'Gagal memuat soal pre-test. Silakan coba lagi.')
+      })
+      .finally(() => {
+        if (aktif) setMemuat(false)
+      })
+    return () => {
+      aktif = false
+    }
+  }, [token])
+
+  const TOTAL = soalList.length
   const soal = soalList[idx]
   const terjawab = jawaban.filter((a) => a !== null).length
   const belum = TOTAL - terjawab
-  const persen = Math.round(((idx + 1) / TOTAL) * 100)
+  const persen = TOTAL > 0 ? Math.round(((idx + 1) / TOTAL) * 100) : 0
   const lansia = trackIdx === 2
 
   const pilih = (i) => {
@@ -27,14 +55,54 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
     })
   }
 
-  const konfirmasiSubmit = () => {
-    const skor = jawaban.reduce((n, a, i) => (a === soalList[i].kunci ? n + 1 : n), 0)
-    onSelesai(skor)
+  const konfirmasiSubmit = async () => {
+    setShowSubmit(false)
+    setMengirim(true)
+    setError('')
+    try {
+      const answers = soalList.map((s, i) => ({
+        questionId: String(s.id),
+        selectedOption: jawaban[i] ?? 0,
+      }))
+      const hasil = await submitTest('pretest', { attemptId, answers })
+      onSelesai(hasil.score)
+    } catch (err) {
+      setError(err.message || 'Gagal mengirim jawaban. Silakan coba lagi.')
+    } finally {
+      setMengirim(false)
+    }
   }
 
   const mintaSubmit = () => {
     if (belum > 0) setShowSubmit(true)
     else konfirmasiSubmit()
+  }
+
+  if (memuat) {
+    return (
+      <main className="w-full min-h-screen bg-surface flex items-center justify-center">
+        <div className="flex flex-col items-center gap-space-md text-text-muted">
+          <span className="material-symbols-outlined text-[40px] animate-spin" aria-hidden="true">progress_activity</span>
+          <span className="font-body-md text-body-md">Memuat soal pre-test…</span>
+        </div>
+      </main>
+    )
+  }
+
+  if (error && TOTAL === 0) {
+    return (
+      <main className="w-full min-h-screen bg-surface flex items-center justify-center">
+        <div className="bg-surface-white rounded-xl shadow-sm p-space-lg max-w-md w-full flex flex-col gap-space-md text-center">
+          <span className="material-symbols-outlined text-[40px] text-error mx-auto" aria-hidden="true">error</span>
+          <p className="font-body-md text-body-md text-on-surface">{error}</p>
+          <button
+            className="inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors"
+            onClick={onKeluar} type="button">
+            Kembali ke Beranda
+          </button>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -62,7 +130,7 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                   </span>
                 </div>
                 <span className="font-body-sm text-body-sm text-text-muted">
-                  Kode Sesi: {token || 'TT-PRE-9021'} • Set {trackIdx + 1}: {LABEL_SET_PRETEST[trackIdx]}
+                  Kode Sesi: {token || 'TT-PRE-9021'} • Set {trackIdx + 1}
                 </span>
               </div>
             </div>
@@ -78,6 +146,14 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
               </div>
             </div>
           </div>
+
+          {error && (
+            <div
+              className="w-full bg-error-container/40 text-error rounded-xl p-space-md font-body-sm text-body-sm flex items-center gap-space-xs">
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">error</span>
+              <span>{error}</span>
+            </div>
+          )}
 
           {/* Main Content: Two Columns Workspace */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
@@ -107,20 +183,6 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                     {soal.pertanyaan}
                   </p>
                 </div>
-
-                {/* Contextual Mockup Callout */}
-                {soal.mockup && (
-                  <div className="p-space-md rounded-xl bg-surface-card-subtle flex items-start gap-space-md">
-                    <div
-                      className="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center text-primary shrink-0 shadow-sm">
-                      <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{soal.mockup.icon}</span>
-                    </div>
-                    <div className="flex flex-col font-body-sm text-body-sm space-y-1">
-                      <span className="font-label-sm text-label-sm text-primary">{soal.mockup.label}</span>
-                      <p className="text-on-surface-variant italic leading-normal">{soal.mockup.isi}</p>
-                    </div>
-                  </div>
-                )}
 
                 {/* Neutral Rule Notice */}
                 <div className="flex items-center gap-space-xs text-text-muted font-body-sm text-body-sm">
@@ -284,10 +346,10 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                 {/* Final Submit Button */}
                 <div className="pt-space-xs">
                   <button
-                    className="w-full inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-secondary hover:text-on-secondary font-label-lg text-label-lg transition-all gap-space-xs shadow-sm"
-                    onClick={mintaSubmit} type="button">
+                    className="w-full inline-flex items-center justify-center h-12 px-space-lg rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-secondary hover:text-on-secondary font-label-lg text-label-lg transition-all gap-space-xs shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    onClick={mintaSubmit} type="button" disabled={mengirim}>
                     <span className="material-symbols-outlined text-[20px]" aria-hidden="true">assignment_turned_in</span>
-                    <span>Selesaikan Tes Sekarang</span>
+                    <span>{mengirim ? 'Mengirim jawaban…' : 'Selesaikan Tes Sekarang'}</span>
                   </button>
                   <p className="font-label-sm text-[12px] text-center text-text-muted mt-2">
                     {belum > 0
@@ -338,7 +400,7 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                 <button
                   className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors"
                   onClick={() => setShowExit(false)} type="button">
-                  Batal &amp; Lanjutkan Tes
+                  Batal & Lanjutkan Tes
                 </button>
                 <button
                   className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-error text-on-error font-label-md text-label-md hover:opacity-90 transition-opacity"
@@ -370,7 +432,7 @@ export default function Pretest({ token = '', track = 1, onSelesai = () => {}, o
                 <button
                   className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-surface-container-low text-on-surface font-label-md text-label-md hover:bg-surface-container transition-colors"
                   onClick={() => setShowSubmit(false)} type="button">
-                  Batal &amp; Lanjutkan Tes
+                  Batal & Lanjutkan Tes
                 </button>
                 <button
                   className="w-full sm:w-auto inline-flex items-center justify-center h-12 px-space-md rounded-xl bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors"
