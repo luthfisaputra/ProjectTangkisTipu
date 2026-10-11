@@ -9,6 +9,8 @@ import classCodesRouter from './routes/classCodes.js';
 import modulesRouter from './routes/modules.js';
 import progressRouter from './routes/progress.js';
 import testsRouter from './routes/tests.js';
+import adminAuthRouter from './routes/adminAuth.js';
+import adminRouter from './routes/admin.js';
 
 const app = express();
 
@@ -29,6 +31,8 @@ app.use('/api/class-codes', classCodesRouter);
 app.use('/api/modules', modulesRouter);
 app.use('/api/progress', progressRouter);
 app.use('/api/tests', testsRouter);
+app.use('/api/admin/auth', adminAuthRouter);
+app.use('/api/admin', adminRouter);
 
 app.use(notFound);
 app.use(errorHandler);

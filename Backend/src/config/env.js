@@ -10,6 +10,8 @@ const schema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_TOKEN_FAIL_MAX: z.coerce.number().int().positive().default(10),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+  ADMIN_JWT_SECRET: z.string().min(32, 'ADMIN_JWT_SECRET minimal 32 karakter'),
+  ADMIN_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(28800),
 });
 
 const parsed = schema.safeParse(process.env);
