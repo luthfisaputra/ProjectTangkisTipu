@@ -255,6 +255,7 @@ export default function DashboardPeserta({
   onModul = () => {},
   onSimulasi = () => {},
   onHome = () => {},
+  onMulaiBaru = () => {},
 }) {
   const token = peserta?.token || 'TKP-8924-X'
   const nickname = peserta?.nickname?.trim() || 'Kawan Waspada'
@@ -292,6 +293,13 @@ export default function DashboardPeserta({
     } catch {
       notify('Unduhan gagal. Catat manual: ' + token)
     }
+  }
+
+  const handleKeluar = () => {
+    const lanjut = window.confirm(
+      'Kamu akan keluar dari perangkat ini. Simpan kodemu dulu agar bisa masuk lagi. Lanjutkan?'
+    )
+    if (lanjut) onMulaiBaru()
   }
 
   return (
@@ -479,10 +487,16 @@ export default function DashboardPeserta({
                   </div>
                   <button
                     className="font-label-sm text-label-sm text-primary hover:underline font-semibold"
-                    onClick={onHome} type="button">
-                    Ubah
+                    onClick={onMulaiBaru} type="button">
+                    Ubah Profil
                   </button>
                 </div>
+                <button
+                  className="w-full h-10 px-space-sm bg-surface-container hover:bg-surface-container-high text-danger-red font-label-md text-label-md rounded-lg flex items-center justify-center gap-1 transition-colors"
+                  onClick={handleKeluar} type="button">
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                  <span>Keluar</span>
+                </button>
                 {classCode && (
                   <div
                     className="flex items-center justify-between p-space-sm rounded-lg bg-surface-container-low">

@@ -33,10 +33,20 @@ export const validateClassCode = (code) =>
     body: JSON.stringify({ code }),
   })
 
-export const createParticipant = ({ nama, kelas, classCode }) =>
+export const createParticipant = ({ nama, nickname, kelas, classCode }) =>
   request('/api/participants', {
     method: 'POST',
-    body: JSON.stringify({ nama, kelas, classCode }),
+    body: JSON.stringify({ nama, nickname, kelas, classCode }),
+  })
+
+export const getParticipant = (token) => request(`/api/participants/${token}`)
+
+export const getProgress = (token) => request(`/api/progress/${token}`)
+
+export const updateProgress = (token, { modusDibaca, skenario }) =>
+  request(`/api/progress/${token}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ modusDibaca, skenario }),
   })
 
 export const startTest = (type, token) =>
@@ -51,4 +61,13 @@ export const submitTest = (type, { attemptId, answers }) =>
     body: JSON.stringify({ attemptId, answers }),
   })
 
-export default { request, validateClassCode, createParticipant, startTest, submitTest }
+export default {
+  request,
+  validateClassCode,
+  createParticipant,
+  getParticipant,
+  getProgress,
+  updateProgress,
+  startTest,
+  submitTest,
+}

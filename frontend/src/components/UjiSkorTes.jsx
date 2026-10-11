@@ -1,10 +1,20 @@
 import { useState } from 'react'
 import { TRACKS } from '../data/jalurBelajar.jsx'
-import { validateClassCode, createParticipant } from '../api.js'
+import { validateClassCode, createParticipant, getParticipant, getProgress } from '../api.js'
 
 const HELP_TEXT = 'Kode Kelas / Komunitas diberikan oleh fasilitator pelatihan agar nilaimu terekap ke dashboard kelompok. Jika kamu belajar sendiri, kolom ini boleh dikosongkan!'
 
-export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {}, onHome = () => {} }) {
+const TOKEN_KEY = 'tangkistipu_token'
+const POLA_TOKEN = /^TKP-[A-Z0-9]{8}$/i
+
+const mapProgres = (p) => ({
+  pretest: p?.pretest ? { skor: p.pretest } : null,
+  modusDibaca: p?.modusDibaca ?? 0,
+  skenario: p?.skenario ?? 0,
+  posttest: p?.posttest ? { skor: p.posttest } : null,
+})
+
+export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {}, onHome = () => {}, onMulaiBaru = () => {}, onMasuk = () => {} }) {
   const [nickname, setNickname] = useState('')
   const [code, setCode] = useState('')
   const [track, setTrack] = useState(1)
@@ -15,6 +25,9 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
   const [codeValid, setCodeValid] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [tokenMasuk, setTokenMasuk] = useState('')
+  const [pesanMasuk, setPesanMasuk] = useState('')
+  const [loadingMasuk, setLoadingMasuk] = useState(false)
 
   const clean = code.trim().toUpperCase()
 
@@ -54,6 +67,7 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
       }
       const res = await createParticipant({
         nama: nick,
+        nickname: nick,
         kelas: '',
         classCode: clean || undefined,
       })
@@ -68,6 +82,42 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
       setError(err.message || 'Gagal mendaftar. Silakan coba lagi.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleMasuk = async (e) => {
+    e.preventDefault()
+    const t = tokenMasuk.trim().toUpperCase()
+    setPesanMasuk('')
+    if (!POLA_TOKEN.test(t)) {
+      setPesanMasuk('Kode tidak ditemukan. Periksa lagi penulisannya.')
+      return
+    }
+    setLoadingMasuk(true)
+    try {
+      const profil = await getParticipant(t)
+      const p = profil?.participant
+      const data = await getProgress(t)
+      try {
+        localStorage.setItem(TOKEN_KEY, t)
+      } catch {
+        /* abaikan */
+      }
+      setPeserta({
+        nickname: p?.nickname || p?.nama || '',
+        track: p?.track ?? 1,
+        classCode: p?.classCode || '',
+        token: t,
+      })
+      onMasuk(data?.progress ? mapProgres(data.progress) : undefined)
+    } catch (err) {
+      if (err?.message && /404|tidak ditemukan/i.test(err.message)) {
+        setPesanMasuk('Kode tidak ditemukan. Periksa lagi penulisannya.')
+      } else {
+        setPesanMasuk('Kode tidak ditemukan. Periksa lagi penulisannya.')
+      }
+    } finally {
+      setLoadingMasuk(false)
     }
   }
 
@@ -323,8 +373,47 @@ export default function UjiSkorTes({ setPeserta = () => {}, onLanjut = () => {},
                       <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                       <span>Kembali ke Beranda</span>
                     </a>
+                    <button
+                      className="w-full py-space-sm text-center font-label-md text-label-md text-text-muted hover:text-primary transition-colors flex items-center justify-center gap-space-xs"
+                      onClick={onMulaiBaru} type="button">
+                      <span className="material-symbols-outlined text-[18px]">restart_alt</span>
+                      <span>Mulai sebagai peserta baru</span>
+                    </button>
                   </div>
                 </form>
+                {/* Sudah punya kode? Masuk dengan kode */}
+                <div className="flex flex-col gap-space-sm pt-space-md border-t border-border-subtle/50">
+                  <span className="font-label-md text-label-md text-on-surface flex items-center gap-space-xs">
+                    <span className="material-symbols-outlined text-[18px] text-primary">key</span>
+                    Sudah punya kode? Masuk dengan kode
+                  </span>
+                  <form className="flex flex-col gap-space-xs" onSubmit={handleMasuk}>
+                    <div className="flex flex-col sm:flex-row gap-space-xs">
+                      <div className="relative flex items-center flex-1">
+                        <div
+                          className="absolute left-space-md text-text-muted flex items-center pointer-events-none">
+                          <span className="material-symbols-outlined text-[22px]">vpn_key</span>
+                        </div>
+                        <input
+                          className="w-full h-[52px] pl-12 pr-space-md rounded-xl bg-surface-white text-on-surface font-mono font-body-md text-body-md uppercase tracking-wider shadow-sm focus:outline-none focus:bg-surface-container-low transition-all"
+                          value={tokenMasuk} onChange={(e) => { setTokenMasuk(e.target.value); setPesanMasuk('') }}
+                          placeholder="TKP-XXXXXXXX" type="text" />
+                      </div>
+                      <button
+                        className="h-[52px] px-space-lg rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md flex items-center justify-center gap-space-xs transition-colors shrink-0"
+                        type="submit" disabled={loadingMasuk}>
+                        <span>{loadingMasuk ? 'Memuat...' : 'Masuk'}</span>
+                        <span className="material-symbols-outlined text-[18px]">{loadingMasuk ? 'hourglass_top' : 'login'}</span>
+                      </button>
+                    </div>
+                    {pesanMasuk && (
+                      <div className="flex items-start gap-space-xs p-space-xs rounded-lg bg-warning-yellow-light text-secondary">
+                        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                        <span className="font-body-sm text-body-sm leading-snug">{pesanMasuk}</span>
+                      </div>
+                    )}
+                  </form>
+                </div>
               </div>
             </div>
           </div>
