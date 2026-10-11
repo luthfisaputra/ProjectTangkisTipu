@@ -71,15 +71,23 @@ export async function updateProgress(req, res, next) {
       });
     }
 
+    // Update parsial: hanya field yang dikirim yang diubah. Field yang tidak
+    // dikirim dipertahankan (COALESCE) dan nilai lama tidak boleh turun (GREATEST).
     const { rows } = await query(
       `INSERT INTO progress (participant_id, modus_dibaca, skenario)
-       VALUES ($1, $2, $3)
+       VALUES ($1, COALESCE($2, 0), COALESCE($3, 0))
        ON CONFLICT (participant_id) DO UPDATE SET
-         modus_dibaca = GREATEST(progress.modus_dibaca, EXCLUDED.modus_dibaca),
-         skenario     = GREATEST(progress.skenario, EXCLUDED.skenario),
-         updated_at   = NOW()
+         modus_dibaca = CASE
+           WHEN $2 IS NULL THEN progress.modus_dibaca
+           ELSE GREATEST(progress.modus_dibaca, $2)
+         END,
+         skenario = CASE
+           WHEN $3 IS NULL THEN progress.skenario
+           ELSE GREATEST(progress.skenario, $3)
+         END,
+         updated_at = NOW()
        RETURNING pretest_score, modus_dibaca, skenario, posttest_score, updated_at`,
-      [participantId, modusDibaca ?? 0, skenario ?? 0],
+      [participantId, modusDibaca ?? null, skenario ?? null],
     );
 
     res.json({ progress: formatProgress(rows[0]) });

@@ -364,11 +364,15 @@ export async function getResults(req, res, next) {
       });
     }
 
+    // Hanya attempt milik peserta ini yang sudah dinilai server (score IS NOT NULL).
+    // Skor selalu berasal dari test_attempts, bukan nilai kiriman klien.
     const { rows: attempts } = await query(
-      `SELECT id, type, set_id, score, passed, created_at
-       FROM test_attempts
-       WHERE participant_id = $1 AND score IS NOT NULL
-       ORDER BY created_at ASC`,
+      `SELECT ta.id, ta.type, ta.set_id, ta.score, ta.passed, ta.created_at,
+              qs.nama AS set_nama
+       FROM test_attempts ta
+       LEFT JOIN question_sets qs ON qs.id = ta.set_id
+       WHERE ta.participant_id = $1 AND ta.score IS NOT NULL
+       ORDER BY ta.created_at ASC`,
       [participant.id],
     );
 
@@ -385,12 +389,24 @@ export async function getResults(req, res, next) {
       [participant.id],
     );
 
+    // Ringkasan per tipe tes (pre/post/retensi) dari attempt yang sudah dinilai.
+    const byType = {};
+    for (const a of attempts) {
+      const entry = byType[a.type] ?? { attempts: 0, bestScore: null, lastScore: null, passed: false };
+      entry.attempts += 1;
+      entry.lastScore = a.score;
+      entry.bestScore = entry.bestScore === null ? a.score : Math.max(entry.bestScore, a.score);
+      entry.passed = entry.passed || a.passed === true;
+      byType[a.type] = entry;
+    }
+
     res.json({
       token,
       attempts: attempts.map((a) => ({
         attemptId: a.id,
         type: a.type,
         setId: a.set_id,
+        setNama: a.set_nama ?? null,
         score: a.score,
         passed: a.passed,
         createdAt: a.created_at,
@@ -401,6 +417,7 @@ export async function getResults(req, res, next) {
           correct: c.correct,
           total: c.total,
         })),
+        byType,
       },
     });
   } catch (err) {

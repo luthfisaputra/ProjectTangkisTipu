@@ -14,8 +14,15 @@ pool.on('error', (err) => {
   console.error('[db] error pada idle client', err);
 });
 
+// Seam untuk pengujian: memungkinkan test menyuntikkan query palsu tanpa DB.
+let queryImpl = (text, params) => pool.query(text, params);
+
 export function query(text, params) {
-  return pool.query(text, params);
+  return queryImpl(text, params);
+}
+
+export function __setQueryImpl(impl) {
+  queryImpl = impl ?? ((text, params) => pool.query(text, params));
 }
 
 export async function withTransaction(fn) {
