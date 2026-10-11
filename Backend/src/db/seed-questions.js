@@ -1,68 +1,81 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { pool } from '../config/db.js';
+import { loadPretestQuestions, validatePretestData } from './seedHelpers.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SOURCE = path.resolve(__dirname, '../../../frontend/src/data/pretestSoal.jsx');
-
-// Muat SOAL_PRETEST_SETS dari file .jsx frontend tanpa bundler:
-// baca sebagai teks, buang bagian export, lalu evaluasi sebagai modul data.
-async function loadSoalPretestSets() {
-  const raw = await readFile(SOURCE, 'utf8');
-  const cleaned = raw
-    .replace(/export\s+const\s+/g, 'const ')
-    .replace(/export\s+function\s+/g, 'function ');
-  const tail = '\nreturn { SOAL_PRETEST_SETS };';
-  const factory = new Function(`${cleaned}${tail}`);
-  return factory().SOAL_PRETEST_SETS;
-}
+// Seed soal pretest dari data backend (Backend/src/db/data/pretest-questions.json).
+// Tidak lagi mengimpor JSX frontend saat runtime.
+//
+// Idempoten & aman terhadap data admin:
+// - INSERT ... ON CONFLICT (id) DO NOTHING -> baris yang sudah ada TIDAK ditimpa.
+//   Jadi soal yang sudah diedit admin tetap utuh saat seed dijalankan ulang.
+// - Untuk mengisi/memperbarui soal seed secara paksa, jalankan dengan SEED_FORCE=1.
+const FORCE = process.env.SEED_FORCE === '1';
 
 async function seed() {
-  const sets = await loadSoalPretestSets();
-  let total = 0;
+  const data = await loadPretestQuestions();
+  const errors = validatePretestData(data);
+  if (errors.length) {
+    throw new Error(`data seed tidak valid: ${errors.join('; ')}`);
+  }
 
-  for (let track = 0; track < sets.length; track++) {
-    for (const soal of sets[track]) {
-      await pool.query(
-        `INSERT INTO questions
-           (id, track, type, kategori, pertanyaan, opsi, kunci, penjelasan, kasus_nyata)
-         VALUES ($1, $2, 'pretest', $3, $4, $5::jsonb, $6, $7, $8)
-         ON CONFLICT (id) DO UPDATE SET
-           track       = EXCLUDED.track,
-           type        = EXCLUDED.type,
-           kategori    = EXCLUDED.kategori,
-           pertanyaan  = EXCLUDED.pertanyaan,
-           opsi        = EXCLUDED.opsi,
-           kunci       = EXCLUDED.kunci,
-           penjelasan  = EXCLUDED.penjelasan,
-           kasus_nyata = EXCLUDED.kasus_nyata`,
-        [
-          soal.id,
-          track,
-          soal.kategori,
-          soal.pertanyaan,
-          JSON.stringify(soal.opsi),
-          soal.kunci,
-          soal.penjelasan,
-          soal.kasusNyata,
-        ]
-      );
-      total++;
+  let inserted = 0;
+  let skipped = 0;
+
+  for (const track of data.tracks) {
+    for (const soal of track.questions) {
+      const params = [
+        soal.id,
+        track.track,
+        soal.kategori ?? null,
+        soal.pertanyaan,
+        JSON.stringify(soal.opsi),
+        soal.kunci,
+        soal.penjelasan ?? null,
+        soal.kasusNyata ?? null,
+      ];
+
+      const sql = FORCE
+        ? `INSERT INTO questions
+             (id, track, type, kategori, pertanyaan, opsi, kunci, penjelasan, kasus_nyata)
+           VALUES ($1, $2, 'pretest', $3, $4, $5::jsonb, $6, $7, $8)
+           ON CONFLICT (id) DO UPDATE SET
+             track       = EXCLUDED.track,
+             type        = EXCLUDED.type,
+             kategori    = EXCLUDED.kategori,
+             pertanyaan  = EXCLUDED.pertanyaan,
+             opsi        = EXCLUDED.opsi,
+             kunci       = EXCLUDED.kunci,
+             penjelasan  = EXCLUDED.penjelasan,
+             kasus_nyata = EXCLUDED.kasus_nyata
+           RETURNING (xmax = 0) AS inserted`
+        : `INSERT INTO questions
+             (id, track, type, kategori, pertanyaan, opsi, kunci, penjelasan, kasus_nyata)
+           VALUES ($1, $2, 'pretest', $3, $4, $5::jsonb, $6, $7, $8)
+           ON CONFLICT (id) DO NOTHING
+           RETURNING (xmax = 0) AS inserted`;
+
+      const { rows } = await pool.query(sql, params);
+      if (rows.length === 0) {
+        skipped += 1;
+      } else {
+        inserted += 1;
+      }
     }
   }
 
-  console.log(`[seed-questions] ${total} soal diproses.`);
+  console.log(
+    `[seed-questions] ${inserted} soal ditulis, ${skipped} dilewati (sudah ada).` +
+      (FORCE ? ' Mode FORCE aktif.' : ''),
+  );
 }
 
 async function verify() {
   const { rows: totalRows } = await pool.query(
-    `SELECT COUNT(*)::int AS total FROM questions WHERE type = 'pretest'`
+    `SELECT COUNT(*)::int AS total FROM questions WHERE type = 'pretest'`,
   );
   const { rows: perTrack } = await pool.query(
     `SELECT track, COUNT(*)::int AS jumlah
        FROM questions WHERE type = 'pretest'
-      GROUP BY track ORDER BY track`
+      GROUP BY track ORDER BY track`,
   );
 
   console.log(`[verify] total soal pretest: ${totalRows[0].total}`);

@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "sumber": "Dikonversi dari frontend/src/data/setSoal.js (SET_SOAL) dan frontend/src/data/kodeKelas.js (NAMA_KELOMPOK) pada sesi BE-09.",
+    "catatan": "Data contoh (seed) backend. Tidak ada data produksi/rahasia. Pemetaan field: id->id, nama->nama, catatan->catatan, jalur->jalur, tipe->tipe, status->status, rilis->rilis_at, tutup->tutup_at, kodeKelas->set_class_codes.code. Relasi set<->kode kelas memakai pivot many-to-many (migrasi 007).",
+    "jumlah": 5
+  },
+  "sets": [
+    {
+      "id": "SET-DWS-POST-02",
+      "nama": "Uji Refleks APK & Tautan Kurir Palsu v2",
+      "catatan": "10 kasus interaktif berbasis percakapan",
+      "jalur": "dewasa",
+      "tipe": "post",
+      "status": "aktif",
+      "rilis_at": "2026-08-14",
+      "tutup_at": "2026-09-14",
+      "kodeKelas": "PR-2312"
+    },
+    {
+      "id": "SET-ANK-PRE-01",
+      "nama": "Modus Pesan Pinjol & Hadiah Game Remaja",
+      "catatan": "Diagnostik kemampuan awal peserta",
+      "jalur": "anak",
+      "tipe": "pre",
+      "status": "terjadwal",
+      "rilis_at": "2026-08-18",
+      "tutup_at": "2026-08-25",
+      "kodeKelas": "PR-4078"
+    },
+    {
+      "id": "SET-DWS-RET-04",
+      "nama": "Evaluasi Retensi Berkala 14 Hari (Spaced Repetition)",
+      "catatan": "Evaluasi retensi pasca pelatihan",
+      "jalur": "dewasa",
+      "tipe": "retensi",
+      "status": "terjadwal",
+      "rilis_at": "2026-08-28",
+      "tutup_at": "2026-09-11",
+      "kodeKelas": "PR-5510"
+    },
+    {
+      "id": "SET-LAN-POST-01",
+      "nama": "Kenali Pesan Darurat Palsu Mengaku Kerabat",
+      "catatan": "Pendampingan keluarga & caregiver",
+      "jalur": "lansia",
+      "tipe": "post",
+      "status": "aktif",
+      "rilis_at": "2026-08-10",
+      "tutup_at": null,
+      "kodeKelas": "PR-8834"
+    },
+    {
+      "id": "SET-DWS-DRAFT-03",
+      "nama": "Kuis Deteksi Belanja Online Bodong",
+      "catatan": "Penyusunan tim kurikulum",
+      "jalur": "dewasa",
+      "tipe": "pre",
+      "status": "draf",
+      "rilis_at": null,
+      "tutup_at": null,
+      "kodeKelas": null
+    }
+  ],
+  "classCodes": [
+    { "code": "PR-2312", "label": "RT 05 RW 07 - Warga Dewasa" },
+    { "code": "PR-4078", "label": "SMAN 12 Jakarta - Kelas 8B" },
+    { "code": "PR-5510", "label": "Ibu-ibu PKK RW 03" },
+    { "code": "PR-8834", "label": "Komunitas Lansia Sejahtera" }
+  ]
+}
