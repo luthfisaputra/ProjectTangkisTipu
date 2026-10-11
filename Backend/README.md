@@ -63,14 +63,40 @@ Cek kesehatan: `GET http://localhost:3000/health` → `{ "status": "ok" }`.
 
 ## 6. Menjalankan Test
 
+### 6.1 Unit test (default, tanpa database)
+
 ```bash
 npm test
 ```
 
-- Test memakai `node:test` dan **tidak memerlukan database nyata maupun rahasia di `.env`**.
+- Menjalankan seluruh `test/*.test.js` memakai `node:test` dan **tidak memerlukan database nyata maupun rahasia di `.env`**.
 - Akses database disuntikkan lewat seam `__setQueryImpl` di [`src/config/db.js`](src/config/db.js:24) dan `pool.connect` untuk transaksi, sehingga query di-mock.
 - Test migrasi/seed hanya membaca file SQL/JSON di disk (tanpa eksekusi DB).
 - Untuk menjalankan satu file: `node --test test/<nama>.test.js`.
+
+### 6.2 Integration test (opt-in, terpisah)
+
+```bash
+npm run test:integration
+```
+
+- Menjalankan `test/integration/*.test.js` dan **tidak ikut berjalan** pada `npm test`.
+- **Read-only**: hanya `SELECT` dan query metadata (`information_schema`). Tidak ada `INSERT`/`UPDATE`/`DELETE`/`DROP`/`TRUNCATE`/`ALTER`, tidak menjalankan migrasi/seed, dan tidak mengubah data yang sudah ada.
+- Kredensial tidak pernah dicetak; koneksi memakai `DATABASE_URL` dari `.env` yang sudah ada.
+- Test yang menyentuh database di-skip kecuali `INTEGRATION_DB=1` diset. Contoh (Windows cmd):
+
+```bash
+set INTEGRATION_DB=1 && npm run test:integration
+```
+
+- Cakupan:
+  - `health.smoke.test.js` — `GET /health` → `200 { status: "ok" }`; endpoint admin tanpa token → `401 UNAUTHORIZED`; token tidak valid → `401 INVALID_TOKEN`. Tidak menyentuh database.
+  - `supabase.readonly.test.js` — `SELECT 1`, keberadaan tabel inti, `schema_migrations` terisi, `answers.selected_option` nullable, dan `GET /api/modules` (read-only).
+- Hasil yang diharapkan: semua test lulus bila koneksi Supabase sehat dan skema sudah dimigrasi. Bila `INTEGRATION_DB` tidak diset, seluruh test DB dilaporkan `skipped` (bukan gagal).
+
+### 6.3 Belum diuji (butuh database TEST terpisah)
+
+- **CRUD dan transaksi tulis** (registrasi peserta, submit test, PATCH progres) **belum diuji** terhadap Supabase saat ini karena akan mengubah data produksi. Pengujian ini memerlukan database TEST terpisah dan belum dijalankan pada BE-15.
 
 ## 7. Format Error
 
