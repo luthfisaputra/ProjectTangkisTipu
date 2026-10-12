@@ -189,8 +189,8 @@ export default function App() {
         // modusIds lokal dipertahankan; jumlah dibaca mengikuti backend.
         modusIds: prev.modusIds,
         skenario: Math.max(prev.skenario, p.skenario ?? 0),
-        pretest: p.pretest > 0 ? { skor: p.pretest, total: 10, passed: prev.pretest?.passed ?? null } : prev.pretest,
-        posttest: p.posttest > 0 ? { skor: p.posttest, total: 10, passed: prev.posttest?.passed ?? null } : prev.posttest,
+        pretest: p.pretest != null ? { skor: p.pretest, total: 10, passed: prev.pretest?.passed ?? null } : prev.pretest,
+        posttest: p.posttest != null ? { skor: p.posttest, total: 10, passed: prev.posttest?.passed ?? null } : prev.posttest,
       }))
       setProgresError('')
     } catch {
@@ -257,8 +257,8 @@ export default function App() {
         setProgres((prev) => ({
           ...prev,
           skenario: Math.max(prev.skenario, p.skenario ?? 0),
-          pretest: p.pretest > 0 ? { skor: p.pretest, total: 10, passed: prev.pretest?.passed ?? null } : prev.pretest,
-          posttest: p.posttest > 0 ? { skor: p.posttest, total: 10, passed: prev.posttest?.passed ?? null } : prev.posttest,
+          pretest: p.pretest != null ? { skor: p.pretest, total: 10, passed: prev.pretest?.passed ?? null } : prev.pretest,
+          posttest: p.posttest != null ? { skor: p.posttest, total: 10, passed: prev.posttest?.passed ?? null } : prev.posttest,
         }))
         setProgresError('')
       } catch (err) {

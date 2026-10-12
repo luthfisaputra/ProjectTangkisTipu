@@ -7,6 +7,7 @@ import {
   getAdminWrongQuestions,
   getAdminWrongCategories,
   getAdminClassCodeStats,
+  listClassCodes,
 } from '../api.js'
 
 const JALUR_OPSI = [
@@ -141,6 +142,7 @@ export default function DashboardAdmin({ onKeluar = () => {}, onNavigate = () =>
   const [soalSalah, setSoalSalah] = useState([])
   const [kategoriSalah, setKategoriSalah] = useState([])
   const [kodeKelasStats, setKodeKelasStats] = useState([])
+  const [opsiKelasSemua, setOpsiKelasSemua] = useState([])
   const [pageSoal, setPageSoal] = useState(1)
   const [pageKategori, setPageKategori] = useState(1)
   const [pageKode, setPageKode] = useState(1)
@@ -223,11 +225,30 @@ export default function DashboardAdmin({ onKeluar = () => {}, onNavigate = () =>
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Opsi kode kelas dibentuk dari data statistik kode kelas backend.
-  const opsiKelas = useMemo(() => {
-    const dariStats = kodeKelasStats.map((k) => ({ value: k.code, label: `${k.code}${k.label ? ` - ${k.label}` : ''}` }))
-    return [{ value: 'all', label: 'Semua Kode Kelas' }, ...dariStats]
-  }, [kodeKelasStats])
+  // Opsi kode kelas diambil dari daftar lengkap kode kelas (bukan statistik
+  // yang terpaginasi), agar semua kode muncul di dropdown filter.
+  useEffect(() => {
+    let aktif = true
+    listClassCodes({ active: 'all' })
+      .then((res) => {
+        if (!aktif) return
+        const daftar = Array.isArray(res?.classCodes) ? res.classCodes : []
+        setOpsiKelasSemua(
+          daftar.map((k) => ({ value: k.code, label: `${k.code}${k.label ? ` - ${k.label}` : ''}` }))
+        )
+      })
+      .catch(() => {
+        if (aktif) setOpsiKelasSemua([])
+      })
+    return () => {
+      aktif = false
+    }
+  }, [])
+
+  const opsiKelas = useMemo(
+    () => [{ value: 'all', label: 'Semua Kode Kelas' }, ...opsiKelasSemua],
+    [opsiKelasSemua]
+  )
 
   // Kembalikan ke "Semua" bila kode terpilih tidak ada di daftar.
   useEffect(() => {

@@ -1,14 +1,37 @@
 const RAW_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
 
-let adminToken = null;
+// Token admin disimpan di sessionStorage agar sesi bertahan saat halaman
+// di-refresh, tetapi tetap hilang saat tab ditutup (lebih aman dari localStorage).
+const ADMIN_TOKEN_KEY = 'tangkistipu.adminToken';
+
+function bacaTokenTersimpan() {
+  try {
+    return window.sessionStorage.getItem(ADMIN_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+let adminToken = bacaTokenTersimpan();
 
 export function setAdminToken(token) {
   adminToken = token || null;
+  try {
+    if (adminToken) window.sessionStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+    else window.sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // Abaikan bila sessionStorage tidak tersedia.
+  }
 }
 
 export function clearAdminToken() {
   adminToken = null;
+  try {
+    window.sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // Abaikan bila sessionStorage tidak tersedia.
+  }
 }
 
 export function getAdminToken() {
