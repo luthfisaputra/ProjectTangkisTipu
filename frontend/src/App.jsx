@@ -34,7 +34,7 @@ import { modul02Lansia } from './data/modul02Lansia.jsx'
 import { modul03Lansia } from './data/modul03Lansia.jsx'
 import { modul04Lansia } from './data/modul04Lansia.jsx'
 import { SIMULASI_CHAT_MODUL } from './data/simulasiChatModul.jsx'
-import { getProgress, updateProgress } from './api.js'
+import { getProgress, updateProgress, adminMe, clearAdminToken, getAdminToken } from './api.js'
 
 const MODUL = {
   'pelajar-01': modul01Pelajar,
@@ -64,6 +64,52 @@ function bacaPesertaTersimpan() {
   }
 }
 
+// Gerbang halaman admin: menampilkan status verifikasi sesi sebelum dashboard
+// dirender. Halaman admin tidak pernah dianggap terautentikasi hanya karena
+// state lokal; keputusan akhir selalu dari GET /api/admin/me.
+function AdminGate({ status = 'unknown', onLogin = () => {}, onRetry = () => {} }) {
+  const memeriksa = status === 'unknown' || status === 'checking'
+  return (
+    <div className="w-full min-h-screen flex items-center justify-center bg-surface-cream px-6">
+      <div className="bg-surface-white rounded-xl shadow-sm p-8 max-w-md w-full text-center flex flex-col items-center gap-4">
+        {memeriksa ? (
+          <>
+            <span className="material-symbols-outlined text-primary text-[40px] animate-spin">progress_activity</span>
+            <h1 className="font-headline-md text-headline-md text-primary">Memeriksa sesi admin…</h1>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Mohon tunggu, kami memverifikasi hak akses Anda.
+            </p>
+          </>
+        ) : (
+          <>
+            <span className="material-symbols-outlined text-danger-red text-[40px]">lock</span>
+            <h1 className="font-headline-md text-headline-md text-primary">Sesi tidak valid</h1>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Sesi admin Anda tidak ditemukan, tidak valid, atau kedaluwarsa. Silakan masuk kembali.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 w-full pt-2">
+              <button
+                className="flex-1 h-11 rounded-lg bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md transition-all active:scale-95"
+                onClick={onLogin}
+                type="button"
+              >
+                Masuk
+              </button>
+              <button
+                className="flex-1 h-11 rounded-lg bg-surface-container-high hover:bg-surface-variant text-on-surface-variant font-label-md text-label-md transition-all active:scale-95"
+                onClick={onRetry}
+                type="button"
+              >
+                Coba Lagi
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [feedback, setFeedback] = useState(false)
   const [page, setPage] = useState('beranda')
@@ -82,6 +128,49 @@ export default function App() {
   // Simpan nilai progres terakhir yang sudah dikirim ke backend agar tidak
   // mengirim request berulang untuk nilai yang sama.
   const progresTersinkronRef = useRef({ modusDibaca: 0, skenario: 0 })
+
+  // Sesi admin. Token disimpan di modul api.js (memori), bukan di state ini.
+  // `adminAuth` = 'unknown' | 'checking' | 'authed' | 'unauthed'.
+  const [adminAuth, setAdminAuth] = useState('unknown')
+  const [admin, setAdmin] = useState(null)
+
+  const halamanAdmin = ['admin', 'set-soal', 'kode-kelas'].includes(page)
+
+  // Verifikasi token admin ke backend setiap kali halaman admin dibuka.
+  // Kegagalan jaringan (status 0) dibedakan dari 401: sesi tidak langsung
+  // dihapus saat jaringan bermasalah.
+  useEffect(() => {
+    if (!halamanAdmin) return
+    // Hanya verifikasi saat status masih 'unknown'; 'authed'/'unauthed' sudah final
+    // sampai pengguna login ulang atau menekan "Coba Lagi".
+    if (adminAuth !== 'unknown') return
+    if (!getAdminToken()) {
+      setAdminAuth('unauthed')
+      return
+    }
+    let aktif = true
+    setAdminAuth('checking')
+    adminMe()
+      .then((res) => {
+        if (!aktif) return
+        setAdmin(res?.admin || null)
+        setAdminAuth('authed')
+      })
+      .catch((err) => {
+        if (!aktif) return
+        if (err && err.status === 401) {
+          clearAdminToken()
+          setAdmin(null)
+          setAdminAuth('unauthed')
+        } else {
+          // Gagal jaringan sementara: pertahankan token, minta coba lagi.
+          setAdminAuth('unauthed')
+        }
+      })
+    return () => {
+      aktif = false
+    }
+  }, [halamanAdmin, adminAuth])
 
   // Skor selalu berasal dari respons backend (submit), bukan dihitung di frontend.
   const selesaikanPretest = (skor, hasil) =>
@@ -240,6 +329,15 @@ export default function App() {
     window.scrollTo({ top: 0 })
   }
 
+  // Logout admin: hapus token dari API client, reset status sesi, kembali ke
+  // halaman login. Identitas & progres peserta tidak disentuh.
+  const keluarAdmin = useCallback(() => {
+    clearAdminToken()
+    setAdmin(null)
+    setAdminAuth('unauthed')
+    navigate('login')
+  }, [])
+
   const openModul = (id) => {
     if (!MODUL[id]) return
     setModulId(id)
@@ -299,20 +397,33 @@ export default function App() {
         ) : modulId ? (
           <ModulDetail content={MODUL[modulId]} onBack={closeModul} onSimulasi={openSimulasiModul} />
         ) : page === 'login' ? (
-          <LoginPage onKembali={() => navigate('beranda')} onMasuk={() => navigate('admin')} />
+          <LoginPage
+            onKembali={() => navigate('beranda')}
+            onMasuk={(adminData) => {
+              setAdmin(adminData || null)
+              setAdminAuth('authed')
+              navigate('admin')
+            }}
+          />
+        ) : halamanAdmin && adminAuth !== 'authed' ? (
+          <AdminGate
+            status={adminAuth}
+            onLogin={() => navigate('login')}
+            onRetry={() => setAdminAuth('unknown')}
+          />
         ) : page === 'admin' ? (
-          <DashboardAdmin onKeluar={() => navigate('login')} onNavigate={navigate} sets={sets} />
+          <DashboardAdmin onKeluar={keluarAdmin} onNavigate={navigate} sets={sets} />
         ) : page === 'set-soal' ? (
           <SetSoalAdmin
             bankSoal={bankSoal}
-            onKeluar={() => navigate('login')}
+            onKeluar={keluarAdmin}
             onNavigate={navigate}
             sets={sets}
             setBankSoal={setBankSoal}
             setSets={setSets}
           />
         ) : page === 'kode-kelas' ? (
-          <KodeKelasAdmin onKeluar={() => navigate('login')} onNavigate={navigate} sets={sets} />
+          <KodeKelasAdmin onKeluar={keluarAdmin} onNavigate={navigate} sets={sets} />
         ) : page === 'pretest' ? (
           <Pretest
             token={peserta?.token}

@@ -101,6 +101,18 @@ export const api = {
   request,
 };
 
+// Login admin. payload: { username, password }.
+// Respons backend: { token, admin: { id, username, role } }.
+export function adminLogin(payload, options) {
+  return request('POST', 'api/admin/auth/login', { body: payload, ...options });
+}
+
+// Verifikasi sesi admin memakai token yang tersimpan.
+// Respons backend: { admin: { id, username, role } }.
+export function adminMe(options) {
+  return request('GET', 'api/admin/me', { auth: true, ...options });
+}
+
 // Validasi kode kelas. Respons backend: { valid, code?, label? }.
 export function validateClassCode(code, options) {
   return request('POST', 'api/class-codes/validate', { body: { code }, ...options });
