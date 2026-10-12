@@ -3,3 +3,5 @@ node_modules/
 
 # Environment konfigurasi lokal
 frontend/.env.local
+# Skrip pengujian browser lokal (Playwright)
+/frontend/*test*.mjs
