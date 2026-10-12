@@ -1,2 +1,5 @@
 node_modules/
 .env
+
+# Environment konfigurasi lokal
+frontend/.env.local
