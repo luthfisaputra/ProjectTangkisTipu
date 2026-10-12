@@ -1,0 +1,275 @@
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    overscroll-behavior: none;
+}
+
+main>:first-child {
+    margin-top: 0 !important;
+}
+
+main>:last-child {
+    margin-bottom: 0 !important;
+}
+
+::-webkit-scrollbar {
+    display: none;
+}
+
+/* ===== Animasi masuk halaman & scroll reveal ===== */
+@keyframes tt-page-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.page-enter {
+    animation: tt-page-in 0.4s ease both;
+}
+
+.reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.65s ease, transform 0.65s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.reveal-2 { transition-delay: 0.12s; }
+.reveal-3 { transition-delay: 0.24s; }
+.reveal-4 { transition-delay: 0.36s; }
+
+@keyframes hint-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hint-in {
+    animation: hint-in 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes pop-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.fade-in {
+    animation: fade-in 0.25s ease both;
+}
+
+.pop-in {
+    animation: pop-in 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* ===== Animasi tambahan untuk SimulasiChatModul & SimulasiKasusInteraktif ===== */
+
+/* Titik "sedang mengetik" memantul bergantian */
+@keyframes typingBounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%           { transform: translateY(-4px); opacity: 1; }
+}
+
+.typing-dot {
+    animation: typingBounce 1.2s infinite ease-in-out;
+}
+
+/* Bubble chat muncul halus dari bawah (dipakai bareng .pop-in) */
+@keyframes slide-up-soft {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up-soft {
+    animation: slide-up-soft 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Kursor berkedip pada indikator "menunggu balasan" */
+@keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; transform: scale(0.85); }
+    50%      { opacity: 1;   transform: scale(1); }
+}
+
+.pulse-dot {
+    animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes tt-progress {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
+.progress-fill {
+    animation: tt-progress 0.9s ease-out forwards;
+}
+
+@keyframes tt-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+.shake {
+    animation: tt-shake 0.4s ease both;
+}
+
+@keyframes tt-scan {
+    0% { transform: translateY(0); opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { transform: translateY(62px); opacity: 0; }
+}
+
+.qr-scan {
+    animation: tt-scan 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .page-enter { animation: none !important; }
+    .hint-in, .fade-in, .pop-in { animation: none !important; }
+    .progress-fill, .shake, .qr-scan { animation: none !important; }
+    .typing-dot, .slide-up-soft, .pulse-dot { animation: none !important; }
+    .animate-ping, .animate-pulse { animation: none !important; }
+    .reveal {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+    }
+    .zoom-on-hover { transition: none !important; }
+    .group:hover .zoom-on-hover { transform: none !important; }
+    .door-glow, .star-twinkle-1, .star-twinkle-2, .star-twinkle-3, .sun-rays, .sun-rays-m, .cloud-drift { animation: none !important; }
+    .sky-transition, .star-group, .cloud-group, .sun-body, .moon-body, .landscape-layer, .field-underline { transition: none !important; }
+}
+
+/* ===== Halaman Login: field underline & animasi SVG ===== */
+.field-underline {
+    transition: all 0.3s ease;
+    border-bottom: 1.5px solid #d0dbe7;
+}
+
+.field-underline:focus-within {
+    border-bottom: 2px solid #0270c7;
+}
+
+@keyframes softGlow {
+
+    0%,
+    100% {
+        opacity: 0.94;
+        filter: drop-shadow(0 0 18px rgba(254, 215, 130, 0.5));
+    }
+
+    50% {
+        opacity: 1;
+        filter: drop-shadow(0 0 28px rgba(254, 215, 130, 0.8));
+    }
+}
+
+.door-glow {
+    animation: softGlow 4s ease-in-out infinite;
+}
+
+.sky-transition {
+    transition: opacity 1000ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.star-group {
+    transition: opacity 800ms cubic-bezier(0.4, 0, 0.2, 1), transform 800ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cloud-group {
+    transition: opacity 900ms cubic-bezier(0.4, 0, 0.2, 1), transform 1200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sun-body {
+    transition: transform 1100ms cubic-bezier(0.34, 1.4, 0.64, 1), opacity 800ms ease;
+    cursor: pointer;
+}
+
+.moon-body {
+    transition: transform 1100ms cubic-bezier(0.34, 1.4, 0.64, 1), opacity 800ms ease;
+    cursor: pointer;
+}
+
+.landscape-layer {
+    transition: fill 1000ms ease, opacity 1000ms ease;
+}
+
+.moon-body:focus,
+.sun-body:focus {
+    outline: none;
+}
+
+@keyframes twinkle {
+
+    0%,
+    100% {
+        opacity: 0.3;
+        transform: scale(0.9);
+    }
+
+    50% {
+        opacity: 0.95;
+        transform: scale(1.15);
+    }
+}
+
+.star-twinkle-1 {
+    animation: twinkle 3s ease-in-out infinite;
+}
+
+.star-twinkle-2 {
+    animation: twinkle 4s ease-in-out infinite 1.5s;
+}
+
+.star-twinkle-3 {
+    animation: twinkle 3.5s ease-in-out infinite 0.7s;
+}
+
+@keyframes rotateRays {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.sun-rays {
+    transform-origin: 610px 105px;
+    animation: rotateRays 25s linear infinite;
+}
+
+.sun-rays-m {
+    transform-origin: 325px 72px;
+    animation: rotateRays 25s linear infinite;
+}
+
+@keyframes cloudDrift {
+
+    0%,
+    100% {
+        transform: translateX(0px);
+    }
+
+    50% {
+        transform: translateX(12px);
+    }
+}
+
+.cloud-drift {
+    animation: cloudDrift 8s ease-in-out infinite alternate;
+}
