@@ -68,6 +68,7 @@ function bacaPesertaTersimpan() {
 // state lokal; keputusan akhir selalu dari GET /api/admin/me.
 function AdminGate({ status = 'unknown', onLogin = () => {}, onRetry = () => {} }) {
   const memeriksa = status === 'unknown' || status === 'checking'
+  const offline = status === 'offline'
   return (
     <div className="w-full min-h-screen flex items-center justify-center bg-surface-cream px-6">
       <div className="bg-surface-white rounded-xl shadow-sm p-8 max-w-md w-full text-center flex flex-col items-center gap-4">
@@ -81,10 +82,16 @@ function AdminGate({ status = 'unknown', onLogin = () => {}, onRetry = () => {} 
           </>
         ) : (
           <>
-            <span className="material-symbols-outlined text-danger-red text-[40px]">lock</span>
-            <h1 className="font-headline-md text-headline-md text-primary">Sesi tidak valid</h1>
+            <span className={`material-symbols-outlined text-[40px] ${offline ? 'text-primary' : 'text-danger-red'}`}>
+              {offline ? 'wifi_off' : 'lock'}
+            </span>
+            <h1 className="font-headline-md text-headline-md text-primary">
+              {offline ? 'Tidak dapat memverifikasi sesi' : 'Sesi tidak valid'}
+            </h1>
             <p className="font-body-sm text-body-sm text-on-surface-variant">
-              Sesi admin Anda tidak ditemukan, tidak valid, atau kedaluwarsa. Silakan masuk kembali.
+              {offline
+                ? 'Koneksi ke server bermasalah. Sesi Anda belum dihapus; periksa jaringan lalu coba lagi.'
+                : 'Sesi admin Anda tidak ditemukan, tidak valid, atau kedaluwarsa. Silakan masuk kembali.'}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 w-full pt-2">
               <button
@@ -109,9 +116,36 @@ function AdminGate({ status = 'unknown', onLogin = () => {}, onRetry = () => {} 
   )
 }
 
+// Halaman yang boleh dipulihkan langsung dari hash URL saat refresh.
+const HALAMAN_HASH = [
+  'belajar-modus',
+  'belajar-modus-populer',
+  'simulasi-kasus',
+  'komunitas',
+  'uji-skor-tes',
+  'dashboard',
+  'pretest',
+  'posttest',
+  'kanal-lapor',
+  'login',
+  'admin',
+  'set-soal',
+  'kode-kelas',
+]
+
+// Baca halaman awal dari hash URL agar refresh tidak selalu kembali ke beranda.
+function bacaHalamanDariHash() {
+  try {
+    const hash = window.location.hash.replace(/^#\/?/, '')
+    return HALAMAN_HASH.includes(hash) ? hash : 'beranda'
+  } catch {
+    return 'beranda'
+  }
+}
+
 export default function App() {
   const [feedback, setFeedback] = useState(false)
-  const [page, setPage] = useState('beranda')
+  const [page, setPage] = useState(() => bacaHalamanDariHash())
   const [modulId, setModulId] = useState(null)
   const [simulasiModulId, setSimulasiModulId] = useState(null)
   const [tesStep, setTesStep] = useState(1)
@@ -125,11 +159,19 @@ export default function App() {
   const progresTersinkronRef = useRef({ modusDibaca: 0, skenario: 0 })
 
   // Sesi admin. Token disimpan di modul api.js (memori), bukan di state ini.
-  // `adminAuth` = 'unknown' | 'checking' | 'authed' | 'unauthed'.
+  // `adminAuth` = 'unknown' | 'checking' | 'authed' | 'unauthed' | 'offline'.
   const [adminAuth, setAdminAuth] = useState('unknown')
   const [admin, setAdmin] = useState(null)
 
   const halamanAdmin = ['admin', 'set-soal', 'kode-kelas'].includes(page)
+
+  // Cermin status sesi admin untuk dibaca di dalam efek tanpa menjadikannya
+  // dependency. Ini mencegah efek berjalan ulang saat status berubah ke
+  // 'checking' (yang akan membatalkan request verifikasi yang sedang berjalan).
+  const adminAuthRef = useRef(adminAuth)
+  useEffect(() => {
+    adminAuthRef.current = adminAuth
+  }, [adminAuth])
 
   // Verifikasi token admin ke backend setiap kali halaman admin dibuka.
   // Kegagalan jaringan (status 0) dibedakan dari 401: sesi tidak langsung
@@ -138,7 +180,7 @@ export default function App() {
     if (!halamanAdmin) return
     // Hanya verifikasi saat status masih 'unknown'; 'authed'/'unauthed' sudah final
     // sampai pengguna login ulang atau menekan "Coba Lagi".
-    if (adminAuth !== 'unknown') return
+    if (adminAuthRef.current !== 'unknown') return
     if (!getAdminToken()) {
       setAdminAuth('unauthed')
       return
@@ -154,18 +196,19 @@ export default function App() {
       .catch((err) => {
         if (!aktif) return
         if (err && err.status === 401) {
+          // Token benar-benar tidak valid/kedaluwarsa: hapus dan minta login.
           clearAdminToken()
           setAdmin(null)
           setAdminAuth('unauthed')
         } else {
-          // Gagal jaringan sementara: pertahankan token, minta coba lagi.
-          setAdminAuth('unauthed')
+          // Gagal jaringan sementara: pertahankan token yang mungkin masih valid.
+          setAdminAuth('offline')
         }
       })
     return () => {
       aktif = false
     }
-  }, [halamanAdmin, adminAuth])
+  }, [halamanAdmin])
 
   // Skor selalu berasal dari respons backend (submit), bukan dihitung di frontend.
   const selesaikanPretest = (skor, hasil) =>
@@ -295,25 +338,17 @@ export default function App() {
   })
 
   const navigate = (path) => {
-    setPage(
-      [
-        'belajar-modus',
-        'belajar-modus-populer',
-        'simulasi-kasus',
-        'komunitas',
-        'uji-skor-tes',
-        'dashboard',
-        'pretest',
-        'posttest',
-        'kanal-lapor',
-        'login',
-        'admin',
-        'set-soal',
-        'kode-kelas',
-      ].includes(path)
-        ? path
-        : 'beranda'
-    )
+    const tujuan = HALAMAN_HASH.includes(path) ? path : 'beranda'
+    setPage(tujuan)
+    // Sinkronkan hash URL agar refresh mempertahankan halaman aktif.
+    try {
+      const hash = tujuan === 'beranda' ? '' : `#${tujuan}`
+      if (window.location.hash !== hash) {
+        window.history.replaceState(null, '', hash || window.location.pathname)
+      }
+    } catch {
+      // Abaikan bila History API tidak tersedia.
+    }
     setModulId(null)
     setSimulasiModulId(null)
     setTesStep(1)
@@ -323,6 +358,20 @@ export default function App() {
     }
     window.scrollTo({ top: 0 })
   }
+
+  // Tanggapi perubahan hash (tombol back/forward browser) tanpa memuat ulang.
+  useEffect(() => {
+    const onHashChange = () => {
+      const tujuan = bacaHalamanDariHash()
+      setPage((prev) => (prev === tujuan ? prev : tujuan))
+      setModulId(null)
+      setSimulasiModulId(null)
+      setTesStep(1)
+      window.scrollTo({ top: 0 })
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   // Logout admin: hapus token dari API client, reset status sesi, kembali ke
   // halaman login. Identitas & progres peserta tidak disentuh.

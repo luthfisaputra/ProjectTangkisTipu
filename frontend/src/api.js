@@ -132,8 +132,15 @@ export function adminLogin(payload, options) {
 
 // Verifikasi sesi admin memakai token yang tersimpan.
 // Respons backend: { admin: { id, username, role } }.
+// Diberi timeout agar request yang menggantung tidak membuat UI macet di
+// status "checking" tanpa batas.
 export function adminMe(options) {
-  return request('GET', 'api/admin/me', { auth: true, ...options });
+  const { timeoutMs = 10000, ...rest } = options || {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return request('GET', 'api/admin/me', { auth: true, signal: controller.signal, ...rest }).finally(() =>
+    clearTimeout(timer)
+  );
 }
 
 // Validasi kode kelas. Respons backend: { valid, code?, label? }.
