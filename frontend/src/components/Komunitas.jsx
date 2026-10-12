@@ -211,6 +211,121 @@ const TAG_OPTIONS = [
 ]
 
 // ============================================================
+// PERSISTENSI LOKAL (localStorage)
+// ============================================================
+
+const STORAGE_KEY = 'tangkistipu.komunitas.v1'
+const STORAGE_VERSION = 1
+// Batas ukuran dataURL gambar yang disimpan (≈ 700 KB base64).
+const MAX_IMAGE_DATAURL_LENGTH = 700 * 1024
+// Batas total payload agar tidak melebihi kuota localStorage.
+const MAX_STORAGE_BYTES = 4 * 1024 * 1024
+
+function isPlainObject(v) {
+  return !!v && typeof v === 'object' && !Array.isArray(v)
+}
+
+function sanitizeImage(image) {
+  if (typeof image !== 'string') return null
+  if (!image.startsWith('data:image/')) return null
+  if (image.length > MAX_IMAGE_DATAURL_LENGTH) return null
+  return image
+}
+
+function sanitizeReply(raw) {
+  if (!isPlainObject(raw)) return null
+  if (typeof raw.id !== 'string' || typeof raw.text !== 'string') return null
+  return {
+    id: raw.id,
+    author: typeof raw.author === 'string' ? raw.author : 'Kamu',
+    handle: typeof raw.handle === 'string' ? raw.handle : '@kamu',
+    time: typeof raw.time === 'string' ? raw.time : 'baru saja',
+    text: raw.text,
+  }
+}
+
+function sanitizeComment(raw) {
+  const base = sanitizeReply(raw)
+  if (!base) return null
+  const replies = Array.isArray(raw.replies)
+    ? raw.replies.map(sanitizeReply).filter(Boolean)
+    : []
+  return { ...base, replies }
+}
+
+function sanitizePost(raw) {
+  if (!isPlainObject(raw)) return null
+  if (typeof raw.id !== 'string' || !raw.id) return null
+  if (typeof raw.text !== 'string') return null
+  return {
+    id: raw.id,
+    author: typeof raw.author === 'string' ? raw.author : 'Kamu',
+    handle: typeof raw.handle === 'string' ? raw.handle : '@kamu',
+    verified: raw.verified === true,
+    time: typeof raw.time === 'string' ? raw.time : 'baru saja',
+    tag: typeof raw.tag === 'string' ? raw.tag : 'Umum',
+    text: raw.text,
+    image: sanitizeImage(raw.image),
+    likes: Number.isFinite(raw.likes) ? raw.likes : 0,
+  }
+}
+
+function sanitizeIdList(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((id) => typeof id === 'string' && id)
+}
+
+// Mengembalikan state valid, atau null jika tidak ada / rusak.
+function loadStoredState() {
+  if (typeof window === 'undefined' || !window.localStorage) return null
+  let raw
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return null
+  }
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!isPlainObject(parsed) || parsed.version !== STORAGE_VERSION) return null
+    if (!Array.isArray(parsed.posts)) return null
+
+    const posts = parsed.posts.map(sanitizePost).filter(Boolean)
+    if (posts.length === 0) return null
+
+    const commentsByPost = {}
+    if (isPlainObject(parsed.commentsByPost)) {
+      Object.keys(parsed.commentsByPost).forEach((key) => {
+        const list = parsed.commentsByPost[key]
+        if (!Array.isArray(list)) return
+        commentsByPost[key] = list.map(sanitizeComment).filter(Boolean)
+      })
+    }
+
+    return {
+      posts,
+      commentsByPost,
+      likedIds: sanitizeIdList(parsed.likedIds),
+      bookmarkIds: sanitizeIdList(parsed.bookmarkIds),
+    }
+  } catch {
+    // JSON rusak: jangan hapus data, cukup abaikan sesi ini.
+    return null
+  }
+}
+
+function saveStoredState(state) {
+  if (typeof window === 'undefined' || !window.localStorage) return
+  try {
+    const payload = JSON.stringify({ version: STORAGE_VERSION, ...state })
+    if (payload.length > MAX_STORAGE_BYTES) return
+    window.localStorage.setItem(STORAGE_KEY, payload)
+  } catch {
+    // Kuota penuh / mode privat: abaikan tanpa menghapus data lama.
+  }
+}
+
+// ============================================================
 // HELPERS
 // ============================================================
 
@@ -413,12 +528,20 @@ function Composer({ onSubmit, onToast }) {
   const handleFile = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      onToast('Ukuran gambar maksimal 5 MB.')
+    // Batasi agar dataURL hasil konversi tetap muat di localStorage.
+    if (file.size > 500 * 1024) {
+      onToast('Ukuran gambar maksimal 500 KB agar bisa disimpan di browser.')
       return
     }
     const reader = new FileReader()
-    reader.onload = (ev) => setImage(ev.target.result)
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result
+      if (typeof dataUrl !== 'string' || dataUrl.length > MAX_IMAGE_DATAURL_LENGTH) {
+        onToast('Gambar terlalu besar untuk disimpan di browser.')
+        return
+      }
+      setImage(dataUrl)
+    }
     reader.readAsDataURL(file)
   }
 
@@ -1016,12 +1139,22 @@ function ConfirmDeleteModal({ post, onCancel, onConfirm }) {
 // ============================================================
 
 export default function Komunitas() {
+  // Pulihkan dari localStorage sekali saat mount; seed hanya dipakai
+  // jika belum ada data tersimpan yang valid.
+  const [initialState] = useState(() => loadStoredState())
+
   const [active, setActive] = useState('explore')
-  const [posts, setPosts] = useState(POSTS_SEED)
-  const [commentsByPost, setCommentsByPost] = useState(COMMENTS_SEED)
+  const [posts, setPosts] = useState(() => initialState?.posts ?? POSTS_SEED)
+  const [commentsByPost, setCommentsByPost] = useState(
+    () => initialState?.commentsByPost ?? COMMENTS_SEED
+  )
   const [openComments, setOpenComments] = useState(() => new Set())
-  const [likedIds, setLikedIds] = useState(() => new Set())
-  const [bookmarkIds, setBookmarkIds] = useState(() => new Set())
+  const [likedIds, setLikedIds] = useState(
+    () => new Set(initialState?.likedIds ?? [])
+  )
+  const [bookmarkIds, setBookmarkIds] = useState(
+    () => new Set(initialState?.bookmarkIds ?? [])
+  )
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState(null)
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -1032,6 +1165,25 @@ export default function Komunitas() {
     setToast(msg)
     window.setTimeout(() => setToast(''), 3000)
   }
+
+  // Sinkronkan perubahan state ke localStorage (debounce ringan).
+  // Tidak menulis saat mount pertama agar tidak menimpa data tersimpan.
+  const didMountRef = useRef(false)
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    const timer = window.setTimeout(() => {
+      saveStoredState({
+        posts,
+        commentsByPost,
+        likedIds: Array.from(likedIds),
+        bookmarkIds: Array.from(bookmarkIds),
+      })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [posts, commentsByPost, likedIds, bookmarkIds])
 
   useEffect(() => {
     if (!openMenuId) return
