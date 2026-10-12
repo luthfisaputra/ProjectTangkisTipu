@@ -20,7 +20,6 @@ import LoginPage from './components/LoginPage.jsx'
 import DashboardAdmin from './components/DashboardAdmin.jsx'
 import KodeKelasAdmin from './components/KodeKelasAdmin.jsx'
 import SetSoalAdmin from './components/SetSoalAdmin.jsx'
-import { DAFTAR_SOAL, SET_SOAL } from './data/setSoal.js'
 import { modul01Pelajar } from './data/modul01Pelajar.jsx'
 import { modul02Pelajar } from './data/modul02Pelajar.jsx'
 import { modul03Pelajar } from './data/modul03Pelajar.jsx'
@@ -119,10 +118,6 @@ export default function App() {
   const [peserta, setPeserta] = useState(
     () => bacaPesertaTersimpan() || { nickname: '', track: 1, classCode: '', token: '' }
   )
-  // State set soal diangkat ke App supaya daftar kode kelas di Dashboard Admin
-  // ikut ter-update saat set ditambah/dihapus di halaman Set Soal.
-  const [sets, setSets] = useState(SET_SOAL)
-  const [bankSoal, setBankSoal] = useState(() => SET_SOAL.reduce((acc, s) => ({ ...acc, [s.id]: DAFTAR_SOAL }), {}))
   const [progres, setProgres] = useState({ pretest: null, modusIds: [], skenario: 0, posttest: null })
   const [progresError, setProgresError] = useState('')
   // Simpan nilai progres terakhir yang sudah dikirim ke backend agar tidak
@@ -412,18 +407,11 @@ export default function App() {
             onRetry={() => setAdminAuth('unknown')}
           />
         ) : page === 'admin' ? (
-          <DashboardAdmin onKeluar={keluarAdmin} onNavigate={navigate} sets={sets} />
+          <DashboardAdmin onKeluar={keluarAdmin} onNavigate={navigate} />
         ) : page === 'set-soal' ? (
-          <SetSoalAdmin
-            bankSoal={bankSoal}
-            onKeluar={keluarAdmin}
-            onNavigate={navigate}
-            sets={sets}
-            setBankSoal={setBankSoal}
-            setSets={setSets}
-          />
+          <SetSoalAdmin onKeluar={keluarAdmin} onNavigate={navigate} onUnauthorized={keluarAdmin} />
         ) : page === 'kode-kelas' ? (
-          <KodeKelasAdmin onKeluar={keluarAdmin} onNavigate={navigate} sets={sets} />
+          <KodeKelasAdmin onKeluar={keluarAdmin} onNavigate={navigate} />
         ) : page === 'pretest' ? (
           <Pretest
             token={peserta?.token}

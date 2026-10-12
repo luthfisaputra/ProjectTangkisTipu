@@ -140,6 +140,64 @@ export function getTestResults(token, options) {
   return request('GET', `api/tests/${encodeURIComponent(token)}/results`, options);
 }
 
+// ---- Admin: pengelolaan set soal (semua butuh token admin) ----
+// Respons backend: { sets: [{ id, nama, catatan, jalur, tipe, kodeKelas, kodeKelasList, rilis, tutup, status, jumlahSoal }] }.
+export function listQuestionSets(options) {
+  return request('GET', 'api/admin/sets', { auth: true, ...options });
+}
+
+// Respons backend: { set, soal: [{ id, kategori, pertanyaan, opsi, kunci, ulasan }] }.
+export function getQuestionSet(id, options) {
+  return request('GET', `api/admin/sets/${encodeURIComponent(id)}`, { auth: true, ...options });
+}
+
+// payload: { nama, catatan?, jalur, tipe, kodeKelas?, rilis?, tutup? }. Respons: { set }.
+export function createQuestionSet(payload, options) {
+  return request('POST', 'api/admin/sets', { body: payload, auth: true, ...options });
+}
+
+// payload: subset dari field set. Respons: { set }.
+export function updateQuestionSet(id, payload, options) {
+  return request('PATCH', `api/admin/sets/${encodeURIComponent(id)}`, { body: payload, auth: true, ...options });
+}
+
+// payload: { status?: 'terjadwal'|'aktif', rilis?, tutup? }. Respons: { set }.
+export function publishQuestionSet(id, payload, options) {
+  return request('POST', `api/admin/sets/${encodeURIComponent(id)}/publish`, { body: payload || {}, auth: true, ...options });
+}
+
+// Respons: { set } dengan status kembali 'draf'.
+export function archiveQuestionSet(id, options) {
+  return request('POST', `api/admin/sets/${encodeURIComponent(id)}/archive`, { body: {}, auth: true, ...options });
+}
+
+// Respons backend: { soal: [{ id, kategori, pertanyaan, opsi, kunci, ulasan }] }.
+export function listSetQuestions(id, options) {
+  return request('GET', `api/admin/sets/${encodeURIComponent(id)}/questions`, { auth: true, ...options });
+}
+
+// payload: { kategori, pertanyaan, opsi: string[], kunci: number, ulasan? }. Respons: { soal }.
+export function createSetQuestion(id, payload, options) {
+  return request('POST', `api/admin/sets/${encodeURIComponent(id)}/questions`, { body: payload, auth: true, ...options });
+}
+
+// payload: subset dari field soal. Respons: { soal }.
+export function updateSetQuestion(id, questionId, payload, options) {
+  return request('PATCH', `api/admin/sets/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}`, {
+    body: payload,
+    auth: true,
+    ...options,
+  });
+}
+
+// Respons: 204 tanpa isi.
+export function deleteSetQuestion(id, questionId, options) {
+  return request('DELETE', `api/admin/sets/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}`, {
+    auth: true,
+    ...options,
+  });
+}
+
 // Progres peserta. Respons backend: { progress: { pretest, modusDibaca, skenario, posttest, updatedAt } }.
 export function getProgress(token, options) {
   return request('GET', `api/progress/${encodeURIComponent(token)}`, options);
