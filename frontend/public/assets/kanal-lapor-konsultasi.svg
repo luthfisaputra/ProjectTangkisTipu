@@ -1,0 +1,74 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" width="800" height="480" role="img" aria-label="Ilustrasi konsultasi tenang dengan petugas layanan perbankan">
+  <defs>
+    <linearGradient id="klBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EAF5FD"/>
+      <stop offset="1" stop-color="#D8EFF8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="480" fill="url(#klBg)"/>
+  <circle cx="672" cy="96" r="78" fill="#baeaff" opacity="0.75"/>
+  <circle cx="118" cy="74" r="26" fill="#febf14"/>
+  <circle cx="742" cy="404" r="54" fill="#E8F8F0"/>
+  <circle cx="58" cy="386" r="34" fill="#ffffff" opacity="0.7"/>
+
+  <!-- panel dinding -->
+  <rect x="330" y="58" width="268" height="150" rx="22" fill="#ffffff" opacity="0.75"/>
+  <rect x="356" y="86" width="120" height="12" rx="6" fill="#004356" opacity="0.75"/>
+  <rect x="356" y="112" width="184" height="10" rx="5" fill="#bfc8cc"/>
+  <rect x="356" y="134" width="150" height="10" rx="5" fill="#bfc8cc"/>
+  <rect x="356" y="164" width="96" height="26" rx="13" fill="#E8F8F0"/>
+  <path d="M372 177l8 8 14-16" stroke="#006234" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- lantai -->
+  <rect x="0" y="376" width="800" height="104" fill="#DCEEF6"/>
+  <rect x="0" y="376" width="800" height="4" fill="#bfc8cc" opacity="0.6"/>
+
+  <!-- nasabah (kiri) -->
+  <g>
+    <path d="M150 376c0-52 30-92 70-92s70 40 70 92z" fill="#0f5c73"/>
+    <rect x="196" y="176" width="26" height="34" rx="13" fill="#E9B183"/>
+    <circle cx="209" cy="152" r="42" fill="#E9B183"/>
+    <path d="M167 148c0-26 19-46 42-46s42 20 42 46c0-12-14-20-42-20s-42 8-42 20z" fill="#3E2C22"/>
+    <path d="M252 300c34-6 58-24 74-46" stroke="#0f5c73" stroke-width="22" fill="none" stroke-linecap="round"/>
+    <circle cx="332" cy="250" r="14" fill="#E9B183"/>
+  </g>
+
+  <!-- meja petugas -->
+  <g>
+    <rect x="430" y="306" width="330" height="70" rx="16" fill="#FAF8F3"/>
+    <rect x="430" y="306" width="330" height="14" rx="7" fill="#E4DDD3"/>
+    <rect x="466" y="246" width="120" height="64" rx="8" fill="#004356"/>
+    <rect x="474" y="254" width="104" height="48" rx="4" fill="#baeaff"/>
+    <rect x="486" y="266" width="56" height="8" rx="4" fill="#004356" opacity="0.7"/>
+    <rect x="486" y="282" width="76" height="8" rx="4" fill="#004356" opacity="0.4"/>
+    <rect x="452" y="310" width="148" height="8" rx="4" fill="#E4DDD3"/>
+  </g>
+
+  <!-- petugas (kanan) -->
+  <g>
+    <path d="M556 306c0-46 26-82 62-82s62 36 62 82z" fill="#006234"/>
+    <rect x="602" y="182" width="24" height="32" rx="12" fill="#C68642"/>
+    <circle cx="614" cy="160" r="40" fill="#C68642"/>
+    <path d="M574 156c0-24 18-42 40-42s40 18 40 42c0-11-13-18-40-18s-40 7-40 18z" fill="#241a12"/>
+    <path d="M566 268c-26 6-46 20-58 40" stroke="#006234" stroke-width="20" fill="none" stroke-linecap="round"/>
+    <circle cx="504" cy="314" r="13" fill="#C68642"/>
+  </g>
+
+  <!-- gelembung percakapan -->
+  <g>
+    <rect x="392" y="96" width="96" height="40" rx="14" fill="#ffffff"/>
+    <path d="M410 136l-6 14 20-14z" fill="#ffffff"/>
+    <circle cx="418" cy="116" r="5" fill="#febf14"/>
+    <circle cx="440" cy="116" r="5" fill="#febf14"/>
+    <circle cx="462" cy="116" r="5" fill="#febf14"/>
+  </g>
+
+  <!-- lencana perisai -->
+  <g>
+    <circle cx="336" cy="306" r="46" fill="#ffffff"/>
+    <circle cx="336" cy="306" r="46" fill="none" stroke="#E4DDD3" stroke-width="3"/>
+    <path d="M336 274l24 10v18c0 16-10 30-24 36-14-6-24-20-24-36v-18z" fill="#004356"/>
+    <path d="M325 304l8 8 15-17" stroke="#febf14" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

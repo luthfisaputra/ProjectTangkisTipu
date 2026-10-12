@@ -6,9 +6,7 @@ export default function Footer() {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-space-xl pb-space-xl">
                 <div className="md:col-span-5 flex flex-col gap-space-md">
                     <div className="flex items-center gap-space-sm">
-                        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-on-primary">
-                            <span className="material-symbols-outlined text-[20px]">verified</span>
-                        </div>
+                        <img src="/assets/LogoTangkis.png" alt="Logo TangkisTipu" className="h-10 w-auto shrink-0" />
                         <span className="font-headline-sm text-headline-sm text-primary font-bold">TangkisTipu</span>
                     </div>
                     <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">

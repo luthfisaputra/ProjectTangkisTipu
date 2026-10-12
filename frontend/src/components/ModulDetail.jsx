@@ -1,15 +1,5 @@
 import { useEffect, useState } from 'react'
 
-const NAV = [
-  { id: 'cara-kerja', label: 'Cara Kerja Penipunya', meta: '4 Langkah' },
-  { id: 'ciri-ciri', label: 'Ciri-Ciri yang Harus Dikenali', meta: '5 Tanda' },
-  { id: 'studi-kasus', label: 'Studi Kasus', meta: '1 Menit' },
-  { id: 'simulasi', label: 'Contoh Simulasi Chat', meta: 'Latihan', latihan: true },
-  { id: 'lakukan', label: 'Yang Harus Kamu Lakukan', meta: '5 Tips' },
-  { id: 'terlanjur', label: 'Kalau Sudah Terlanjur', meta: '4 Langkah' },
-  { id: 'lapor', label: 'Tempat Melapor', meta: '4 Kanal' },
-]
-
 function SectionHead({ num, label, title, revealClass = '' }) {
   return (
     <div className={`flex flex-col gap-1 ${revealClass}`}>
@@ -25,8 +15,24 @@ function SectionHead({ num, label, title, revealClass = '' }) {
 }
 
 export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi = () => {} }) {
+  const nav = [
+    { id: 'cara-kerja', label: 'Cara Kerja Penipunya', meta: `${c.langkah.length} Langkah` },
+    { id: 'ciri-ciri', label: 'Ciri-Ciri yang Harus Dikenali', meta: `${c.ciri.length} Tanda` },
+    { id: 'studi-kasus', label: 'Studi Kasus', meta: '1 Menit' },
+    { id: 'simulasi', label: 'Contoh Simulasi Chat', meta: 'Latihan', latihan: true },
+    { id: 'lakukan', label: 'Yang Harus Kamu Lakukan', meta: `${c.lakukan.length} Tips` },
+    { id: 'terlanjur', label: 'Kalau Sudah Terlanjur', meta: `${c.terlanjur.length} Langkah` },
+    { id: 'lapor', label: 'Tempat Melapor', meta: `${c.lapor.length} Kanal` },
+  ]
+  const mentor = c.mentor || {
+    img: '/assets/ChildModul.png',
+    nama: 'Kiki Digital',
+    peran: 'Mentor Siaga Remaja',
+    quote: <>Ragu? <strong className="text-danger-red font-semibold">Tanya orang tua, kakak, atau
+      guru</strong> sebelum klik.</>,
+  }
   const [progress, setProgress] = useState(0)
-  const [active, setActive] = useState(NAV[0].id)
+  const [active, setActive] = useState(nav[0].id)
   const [choice, setChoice] = useState(null)
 
   useEffect(() => {
@@ -47,7 +53,7 @@ export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi 
       },
       { rootMargin: '-96px 0px -55% 0px' }
     )
-    NAV.forEach((n) => {
+    nav.forEach((n) => {
       const el = document.getElementById(n.id)
       if (el) obs.observe(el)
     })
@@ -89,7 +95,7 @@ export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi 
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-low text-primary font-label-sm text-label-sm font-semibold">
-                      <span className="material-symbols-outlined text-[15px]">sports_esports</span>
+                      <span className="material-symbols-outlined text-[15px]">{c.icon || 'sports_esports'}</span>
                       Modul {c.num} • {c.jalur}
                     </span>
                     <span
@@ -141,7 +147,7 @@ export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi 
                     Studi Kasus Lapangan
                   </div>
                   <h3 className="font-headline-sm text-headline-sm text-primary">
-                    Kasus Nyata: Rizky (15 Tahun)
+                    {c.kasusTitle || 'Kasus Nyata: Rizky (15 Tahun)'}
                   </h3>
                   <p className="font-body-md text-body-md text-on-surface leading-relaxed max-w-[65ch]">
                     {c.studiKasus}
@@ -244,7 +250,7 @@ export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi 
                     Kembali ke Kurikulum
                   </a>
                   <a className="w-full sm:w-auto h-[52px] px-space-lg rounded-xl bg-primary text-on-primary font-label-lg text-label-lg flex items-center justify-center gap-2 hover:bg-primary-container transition-all shadow-sm cursor-pointer"
-                    href="#" onClick={(e) => { e.preventDefault(); onSimulasi() }}>
+                    href="#" onClick={(e) => { e.preventDefault(); onSimulasi(c.id) }}>
                     <span>Lanjut ke Simulasi Chat Penipuan</span>
                     <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
                   </a>
@@ -257,17 +263,16 @@ export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi 
                   <div className="flex items-center gap-3">
                     <div
                       className="w-12 h-12 rounded-xl bg-primary-fixed overflow-hidden shrink-0 flex items-center justify-center">
-                      <img alt="Kiki Penjaga Digital" className="w-full h-full object-cover"
-                        src="/assets/ChildModul.png" />
+                      <img alt={mentor.nama} className="w-full h-full object-cover"
+                        src={mentor.img} />
                     </div>
                     <div className="flex flex-col">
-                      <span className="font-label-sm text-label-sm font-bold text-primary">Kiki Digital</span>
-                      <span className="text-xs text-on-surface-variant">Mentor Siaga Remaja</span>
+                      <span className="font-label-sm text-label-sm font-bold text-primary">{mentor.nama}</span>
+                      <span className="text-xs text-on-surface-variant">{mentor.peran}</span>
                     </div>
                   </div>
                   <p className="text-xs text-on-surface-variant leading-relaxed pl-1">
-                    "Ragu? <strong className="text-danger-red font-semibold">Tanya orang tua, kakak, atau
-                    guru</strong> sebelum klik."
+                    "{mentor.quote}"
                   </p>
                 </div>
 
@@ -277,10 +282,10 @@ export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi 
                     <h3 className="font-label-lg text-label-lg text-primary font-bold">Panduan Membaca</h3>
                     <span
                       className="text-xs font-semibold text-tertiary bg-safe-green-light px-2.5 py-0.5 rounded-full">Modul
-                      1 dari 4</span>
+                      {parseInt(c.num, 10)} dari 4</span>
                   </div>
                   <nav className="flex flex-col gap-1.5">
-                    {NAV.map((n) => {
+                    {nav.map((n) => {
                       const isActive = active === n.id
                       return (
                         <a key={n.id}
@@ -290,7 +295,7 @@ export default function ModulDetail({ content: c, onBack = () => {}, onSimulasi 
                             <span className={`material-symbols-outlined text-[18px] ${isActive ? 'text-primary' : n.latihan ? 'text-secondary' : 'text-outline'}`}>
                               {isActive ? 'check_circle' : n.latihan ? 'flash_on' : 'radio_button_unchecked'}
                             </span>
-                            <span>{NAV.indexOf(n) + 1}. {n.label}</span>
+                            <span>{nav.indexOf(n) + 1}. {n.label}</span>
                           </div>
                           <span className={`text-[11px] ${isActive ? 'text-primary font-bold' : n.latihan ? 'text-secondary font-bold' : 'text-on-surface-variant'}`}>
                             {isActive ? 'Aktif' : n.meta}

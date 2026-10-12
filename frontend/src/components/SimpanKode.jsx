@@ -21,36 +21,6 @@ const GUIDES = [
   },
 ]
 
-function QrPreview() {
-  return (
-    <div
-      className="relative w-20 h-20 bg-surface-white rounded-lg p-1.5 flex items-center justify-center shrink-0 shadow-sm">
-      <svg aria-label="QR code identitas peserta TangkisTipu" className="w-full h-full text-primary"
-        fill="currentColor" role="img" viewBox="0 0 100 100">
-        <rect fill="currentColor" height="30" rx="4" width="30" x="0" y="0"></rect>
-        <rect fill="#FFFFFF" height="18" rx="2" width="18" x="6" y="6"></rect>
-        <rect fill="currentColor" height="10" width="10" x="10" y="10"></rect>
-        <rect fill="currentColor" height="30" rx="4" width="30" x="70" y="0"></rect>
-        <rect fill="#FFFFFF" height="18" rx="2" width="18" x="76" y="6"></rect>
-        <rect fill="currentColor" height="10" width="10" x="80" y="10"></rect>
-        <rect fill="currentColor" height="30" rx="4" width="30" x="0" y="70"></rect>
-        <rect fill="#FFFFFF" height="18" rx="2" width="18" x="6" y="76"></rect>
-        <rect fill="currentColor" height="10" width="10" x="10" y="80"></rect>
-        <rect height="8" rx="2" width="16" x="42" y="10"></rect>
-        <rect height="16" rx="2" width="8" x="42" y="24"></rect>
-        <rect height="8" rx="2" width="14" x="12" y="42"></rect>
-        <rect height="16" rx="3" width="28" x="36" y="42"></rect>
-        <rect height="8" rx="2" width="16" x="74" y="42"></rect>
-        <rect height="20" rx="2" width="12" x="42" y="70"></rect>
-        <rect height="12" rx="2" width="18" x="64" y="68"></rect>
-        <rect height="10" rx="2" width="26" x="64" y="86"></rect>
-      </svg>
-      <div className="absolute left-1.5 right-1.5 top-1.5 h-0.5 rounded-full bg-primary/60 qr-scan" aria-hidden="true">
-      </div>
-    </div>
-  )
-}
-
 export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () => {} }) {
   const token = peserta?.token || 'TKP-0000-X'
   const nickname = peserta?.nickname?.trim() || 'Kawan Waspada'
@@ -61,8 +31,6 @@ export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () =>
   const [pulse, setPulse] = useState(false)
   const [toast, setToast] = useState(false)
   const [download, setDownload] = useState('idle')
-  const [skipWarn, setSkipWarn] = useState(false)
-  const [shake, setShake] = useState(false)
 
   useEffect(() => {
     if (!toast) return
@@ -75,12 +43,6 @@ export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () =>
     const timer = window.setTimeout(() => setPulse(false), 1200)
     return () => window.clearTimeout(timer)
   }, [pulse])
-
-  useEffect(() => {
-    if (!shake) return
-    const timer = window.setTimeout(() => setShake(false), 450)
-    return () => window.clearTimeout(timer)
-  }, [shake])
 
   const showToast = () => setToast(true)
 
@@ -110,19 +72,7 @@ export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () =>
     }, 900)
   }
 
-  const toggleSaved = (e) => {
-    setSaved(e.target.checked)
-    if (e.target.checked) setSkipWarn(false)
-  }
-
-  const handleSkip = () => {
-    if (!saved) {
-      setSkipWarn(true)
-      setShake(true)
-      return
-    }
-    onMulai()
-  }
+  const toggleSaved = (e) => setSaved(e.target.checked)
 
   return (
     <main className="w-full bg-surface-cream min-h-screen">
@@ -206,11 +156,6 @@ export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () =>
                       className="font-label-sm text-label-sm uppercase tracking-wider text-text-muted">Kode Peserta
                       Anonim Anda</span>
                   </div>
-                  <div
-                    className="inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-safe-green-light text-tertiary font-label-sm text-label-sm">
-                    <span className="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></span>
-                    Aktif &amp; Terverifikasi
-                  </div>
                 </div>
 
                 {/* Kotak Kode */}
@@ -272,17 +217,6 @@ export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () =>
                   </div>
                 )}
 
-                {/* Pratinjau Tiket & QR */}
-                <div
-                  className="p-space-md rounded-xl bg-surface-card-subtle flex flex-col sm:flex-row items-center gap-space-md">
-                  <QrPreview />
-                  <div className="flex flex-col text-center sm:text-left">
-                    <span className="font-label-md text-label-md text-on-surface">Pindai Cepat di Perangkat Lain</span>
-                    <p className="font-body-sm text-body-sm text-text-muted mt-0.5">
-                      Buka di tablet atau ponsel lansia cukup dengan mengarahkan kamera ke kode QR sesi ini.
-                    </p>
-                  </div>
-                </div>
               </div>
 
               {/* Panduan Singkat */}
@@ -339,7 +273,7 @@ export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () =>
 
               {/* Konfirmasi & CTA */}
               <div
-                className={`bg-surface-white rounded-[16px] p-space-lg sm:p-space-xl shadow-md flex flex-col gap-space-lg reveal reveal-2 ${shake ? 'shake' : ''}`}
+                className="bg-surface-white rounded-[16px] p-space-lg sm:p-space-xl shadow-md flex flex-col gap-space-lg reveal reveal-2"
                 style={{ boxShadow: '0 10px 30px rgba(15, 92, 115, 0.06)' }}>
                 <label className="flex items-start gap-space-md cursor-pointer select-none group">
                   <div className="relative flex items-center justify-center mt-0.5">
@@ -369,21 +303,6 @@ export default function SimpanKode({ peserta, onBack = () => {}, onMulai = () =>
                     <span>Lanjut ke Pre-test / Belajar</span>
                     <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
                   </button>
-
-                  <div className="text-center pt-space-xs flex flex-col items-center gap-space-xs">
-                    <a
-                      className="font-label-md text-label-md text-primary hover:text-primary-container underline underline-offset-4 decoration-primary/30 hover:decoration-primary transition-colors"
-                      href="#" onClick={(e) => { e.preventDefault(); handleSkip() }}>
-                      Lewati Pre-test, Langsung ke Modus
-                    </a>
-                    {skipWarn && (
-                      <span
-                        className="hint-in inline-flex items-center gap-space-xs font-body-sm text-body-sm text-danger-red">
-                        <span className="material-symbols-outlined text-[16px]">error</span>
-                        Centang dulu konfirmasi penyimpanan kodemu.
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
 
