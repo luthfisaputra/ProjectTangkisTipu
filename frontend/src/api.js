@@ -140,6 +140,54 @@ export function getTestResults(token, options) {
   return request('GET', `api/tests/${encodeURIComponent(token)}/results`, options);
 }
 
+// ---- Admin: pengelolaan kode kelas (semua butuh token admin) ----
+// filters: { active?: 'true'|'false'|'all', q?: string }.
+// Respons backend: { classCodes: [{ code, label, active, createdAt, jumlahPeserta, jumlahSet }] }.
+export function listClassCodes(filters = {}, options) {
+  const params = new URLSearchParams()
+  if (filters.active) params.set('active', filters.active)
+  if (filters.q) params.set('q', filters.q)
+  const qs = params.toString()
+  return request('GET', `api/admin/class-codes${qs ? `?${qs}` : ''}`, { auth: true, ...options })
+}
+
+// Respons backend: { classCode: { code, label, active, createdAt, jumlahPeserta, jumlahSet, setIds } }.
+export function getClassCode(code, options) {
+  return request('GET', `api/admin/class-codes/${encodeURIComponent(code)}`, { auth: true, ...options })
+}
+
+// payload: { code, label?, active?, setIds? }. Respons: { classCode }.
+export function createClassCode(payload, options) {
+  return request('POST', 'api/admin/class-codes', { body: payload, auth: true, ...options })
+}
+
+// payload: subset { label?, active?, setIds? }. Respons: { classCode }.
+export function updateClassCode(code, payload, options) {
+  return request('PATCH', `api/admin/class-codes/${encodeURIComponent(code)}`, {
+    body: payload,
+    auth: true,
+    ...options,
+  })
+}
+
+// Respons: { classCode }.
+export function activateClassCode(code, options) {
+  return request('POST', `api/admin/class-codes/${encodeURIComponent(code)}/activate`, {
+    body: {},
+    auth: true,
+    ...options,
+  })
+}
+
+// Respons: { classCode }.
+export function deactivateClassCode(code, options) {
+  return request('POST', `api/admin/class-codes/${encodeURIComponent(code)}/deactivate`, {
+    body: {},
+    auth: true,
+    ...options,
+  })
+}
+
 // ---- Admin: pengelolaan set soal (semua butuh token admin) ----
 // Respons backend: { sets: [{ id, nama, catatan, jalur, tipe, kodeKelas, kodeKelasList, rilis, tutup, status, jumlahSoal }] }.
 export function listQuestionSets(options) {

@@ -411,7 +411,7 @@ export default function App() {
         ) : page === 'set-soal' ? (
           <SetSoalAdmin onKeluar={keluarAdmin} onNavigate={navigate} onUnauthorized={keluarAdmin} />
         ) : page === 'kode-kelas' ? (
-          <KodeKelasAdmin onKeluar={keluarAdmin} onNavigate={navigate} />
+          <KodeKelasAdmin onKeluar={keluarAdmin} onNavigate={navigate} onUnauthorized={keluarAdmin} />
         ) : page === 'pretest' ? (
           <Pretest
             token={peserta?.token}
