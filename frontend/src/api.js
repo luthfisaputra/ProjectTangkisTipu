@@ -246,6 +246,48 @@ export function deleteSetQuestion(id, questionId, options) {
   });
 }
 
+// ---- Admin: dashboard statistik (semua butuh token admin) ----
+// Membangun query string dari filter yang hanya berisi nilai terisi.
+function buildStatsQuery(filters = {}) {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+    params.set(key, String(value))
+  })
+  const qs = params.toString()
+  return qs ? `?${qs}` : ''
+}
+
+// filters: { kodeKelas?, jalur?: 'anak'|'dewasa'|'lansia' }.
+// Respons backend: { ringkasan: { jumlahPeserta, pretest, posttest, kenaikanRataRata, penyelesaian }, definisi }.
+export function getAdminStatsSummary(filters = {}, options) {
+  return request('GET', `api/admin/stats/ringkasan${buildStatsQuery(filters)}`, { auth: true, ...options })
+}
+
+// filters: { kodeKelas?, jalur? }.
+// Respons backend: { distribusi: { pretest: [{ skor, jumlah }], posttest: [...] }, definisi }.
+export function getAdminStatsDistribution(filters = {}, options) {
+  return request('GET', `api/admin/stats/distribusi${buildStatsQuery(filters)}`, { auth: true, ...options })
+}
+
+// params: { page?, limit? }.
+// Respons backend: { soal: [{ questionId, kategori, salah, dijawab, persenSalah }], page, limit, definisi }.
+export function getAdminWrongQuestions(params = {}, options) {
+  return request('GET', `api/admin/stats/soal-salah${buildStatsQuery(params)}`, { auth: true, ...options })
+}
+
+// params: { page?, limit? }.
+// Respons backend: { kategori: [{ kategori, salah, dijawab, persenSalah }], page, limit, definisi }.
+export function getAdminWrongCategories(params = {}, options) {
+  return request('GET', `api/admin/stats/kategori-salah${buildStatsQuery(params)}`, { auth: true, ...options })
+}
+
+// params: { page?, limit? }.
+// Respons backend: { kodeKelas: [{ code, label, active, jumlahPeserta, pretestSelesai, posttestSelesai, rataRataPretest, rataRataPosttest, persenPenyelesaianPosttest }], page, limit, definisi }.
+export function getAdminClassCodeStats(params = {}, options) {
+  return request('GET', `api/admin/stats/kode-kelas${buildStatsQuery(params)}`, { auth: true, ...options })
+}
+
 // Progres peserta. Respons backend: { progress: { pretest, modusDibaca, skenario, posttest, updatedAt } }.
 export function getProgress(token, options) {
   return request('GET', `api/progress/${encodeURIComponent(token)}`, options);

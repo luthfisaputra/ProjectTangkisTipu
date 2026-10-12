@@ -407,7 +407,7 @@ export default function App() {
             onRetry={() => setAdminAuth('unknown')}
           />
         ) : page === 'admin' ? (
-          <DashboardAdmin onKeluar={keluarAdmin} onNavigate={navigate} />
+          <DashboardAdmin onKeluar={keluarAdmin} onNavigate={navigate} onUnauthorized={keluarAdmin} />
         ) : page === 'set-soal' ? (
           <SetSoalAdmin onKeluar={keluarAdmin} onNavigate={navigate} onUnauthorized={keluarAdmin} />
         ) : page === 'kode-kelas' ? (
